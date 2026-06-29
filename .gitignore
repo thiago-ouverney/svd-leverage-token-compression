@@ -1,0 +1,35 @@
+# Dados e artefatos gerados (reproduzir com experimento.py)
+*.csv
+*.json
+*.jsonl
+resultados/*.png
+
+# Notebooks e Python
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Ambientes e configs locais
+.env
+.env.*
+*.local
+.venv/
+venv/
+env/
+
+# IDE e SO
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Modelos HuggingFace em cache local
+.cache/
+models/

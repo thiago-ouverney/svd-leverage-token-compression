@@ -1,0 +1,8 @@
+# Dependencias minimas (testes unitarios)
+numpy>=1.26.0
+matplotlib>=3.8.0
+
+# Experimento IMDb (embeddings token-level)
+# datasets>=2.14.0
+# transformers>=4.36.0
+# torch>=2.0.0
