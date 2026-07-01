@@ -1,6 +1,7 @@
 # Dependencias minimas (testes unitarios)
 numpy>=1.26.0
 matplotlib>=3.8.0
+scikit-learn>=1.3.0
 
 # Experimento IMDb (embeddings token-level)
 # datasets>=2.14.0
