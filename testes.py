@@ -6,11 +6,19 @@ import numpy as np
 import compressores as cp
 import metricas
 from dados import dividir_indices_estratificado
-from embeddings import gerar_embedding_sintetico
+
+
+def _matriz_teste(n_tokens=16, dim=10, posto=None, semente=0):
+    rng = np.random.default_rng(semente)
+    if posto is not None:
+        A = rng.standard_normal((n_tokens, posto))
+        B = rng.standard_normal((dim, posto))
+        return (A @ B.T).astype(np.float64)
+    return rng.standard_normal((n_tokens, dim)).astype(np.float64)
 
 
 def teste_idempotencia_sem_truncar():
-    F = gerar_embedding_sintetico(n_tokens=16, dim=10, semente=1)
+    F = _matriz_teste(n_tokens=16, dim=10, semente=1)
     indices, F_hat, info = cp.comprimir_svd(F, orcamento=1.0)
     assert len(indices) == F.shape[0]
     assert F_hat.shape == F.shape
@@ -18,7 +26,7 @@ def teste_idempotencia_sem_truncar():
 
 
 def teste_gram_psd():
-    F = gerar_embedding_sintetico(n_tokens=16, dim=10, semente=3)
+    F = _matriz_teste(n_tokens=16, dim=10, semente=3)
     g = F.T @ F
     assert np.allclose(g, g.T)
     eigs = np.linalg.eigvalsh(g)
@@ -26,7 +34,7 @@ def teste_gram_psd():
 
 
 def teste_valores_singulares_vs_autovalores():
-    F = gerar_embedding_sintetico(n_tokens=16, dim=10, semente=4)
+    F = _matriz_teste(n_tokens=16, dim=10, semente=4)
     _, S, _ = np.linalg.svd(F, full_matrices=False)
     eigs = np.linalg.eigvalsh(F.T @ F)
     eigs = np.sort(eigs)[::-1]
@@ -37,40 +45,40 @@ def teste_metricas_basicas():
     assert abs(metricas.compressao(4, 2) - 0.5) < 1e-12
     R = metricas.fidelidade_reconstrucao(np.ones((4, 3)), np.ones((4, 3)))
     assert abs(R - 1.0) < 1e-12
-    _, _, info = cp.comprimir_svd(gerar_embedding_sintetico(n_tokens=16, dim=10, semente=1), 0.5)
+    _, _, info = cp.comprimir_svd(_matriz_teste(n_tokens=16, dim=10, semente=1), 0.5)
     E = metricas.energia_espectral_preservada(info)
     assert E >= 0.95
     assert metricas.flops_svd_densa(64, 48) == min(64 * 48 * 48, 64 * 64 * 48)
 
 
 def teste_determinismo():
-    F1 = gerar_embedding_sintetico(semente=7)
-    F2 = gerar_embedding_sintetico(semente=7)
+    F1 = _matriz_teste(semente=7)
+    F2 = _matriz_teste(semente=7)
     assert np.allclose(F1, F2)
 
 
 def teste_full_mantem_todos():
-    F = gerar_embedding_sintetico(n_tokens=20, dim=8, semente=2)
+    F = _matriz_teste(n_tokens=20, dim=8, semente=2)
     indices, F_hat, _ = cp.comprimir_full(F, orcamento=0.25)
     assert len(indices) == 20
     assert np.allclose(F_hat, F)
 
 
 def teste_random_reprodutivel():
-    F = gerar_embedding_sintetico(n_tokens=30, dim=8, semente=5)
+    F = _matriz_teste(n_tokens=30, dim=8, semente=5)
     i1, _, _ = cp.comprimir_random(F, orcamento=0.5, semente=99)
     i2, _, _ = cp.comprimir_random(F, orcamento=0.5, semente=99)
     assert np.array_equal(i1, i2)
 
 
 def teste_t_minimo():
-    F = gerar_embedding_sintetico(n_tokens=4, dim=6, semente=1)
+    F = _matriz_teste(n_tokens=4, dim=6, semente=1)
     indices, _, _ = cp.comprimir_svd(F, orcamento=0.01)
     assert len(indices) >= 1
 
 
 def teste_svd_energia():
-    F = gerar_embedding_sintetico(n_tokens=32, dim=16, posto=4, semente=11)
+    F = _matriz_teste(n_tokens=32, dim=16, posto=4, semente=11)
     _, _, info_svd = cp.comprimir_svd(F, orcamento=0.5, semente=0)
     _, _, info_en = cp.comprimir_svd_energia(F, orcamento=0.5, semente=0)
     assert info_svd["pontuacoes"] is not None
@@ -86,7 +94,7 @@ def teste_norma_zero():
 
 
 def teste_indices_ordenados():
-    F = gerar_embedding_sintetico(n_tokens=25, dim=10, semente=8)
+    F = _matriz_teste(n_tokens=25, dim=10, semente=8)
     for metodo in ("random", "norm", "first", "svd", "svd_energia"):
         fn = cp.COMPRESSORES[metodo]
         indices, _, _ = fn(F, orcamento=0.4, semente=3)
