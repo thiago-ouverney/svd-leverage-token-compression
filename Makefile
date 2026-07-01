@@ -2,6 +2,8 @@
 
 PYTHON ?= python3
 PIP ?= pip
+SRC = src
+export PYTHONPATH := $(CURDIR)/$(SRC)
 
 help:
 	@echo "Targets:"
@@ -20,4 +22,4 @@ test: install
 	$(PYTHON) testes.py
 
 experiment: install-experiment
-	$(PYTHON) experimento.py --max-amostras 400 --max-tokens 256
+	$(PYTHON) $(SRC)/experimento.py --max-amostras 400 --max-tokens 256
