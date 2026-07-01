@@ -47,6 +47,7 @@ Script principal (`experimento.py`):
 ```bash
 python experimento.py --max-amostras 400 --max-tokens 256
 python experimento.py --sanidade-gpt2   # opcional: checagem GPT-2
+SEED=42 SEMENTES=0,1,2 python experimento.py   # seeds via variaveis de ambiente
 ```
 
 Grade experimental:
@@ -57,7 +58,16 @@ Grade experimental:
   - `resultados.csv` / `resultados_imdb.csv`
   - `tradeoff_acerto_compressao.png`
 
-Notebook pedagógico: `trabalho_final.ipynb`. Com `FORCAR_REEXECUCAO = False`, reutiliza CSV em cache.
+Notebooks pedagógicos: [`extracao_embedding.ipynb`](extracao_embedding.ipynb) (extração de $F$), [`compressao_tokens.ipynb`](compressao_tokens.ipynb) (operadores de poda), [`avaliacao_metricas.ipynb`](avaliacao_metricas.ipynb) (métricas e downstream) e [`trabalho_final.ipynb`](trabalho_final.ipynb) (grade e resultados). Com `FORCAR_REEXECUCAO = False`, reutiliza CSV em cache.
+
+## Notebooks
+
+| Notebook | Conteúdo |
+|----------|----------|
+| [`extracao_embedding.ipynb`](extracao_embedding.ipynb) | Extração de $F$ etapa a etapa (`embeddings.py`: tokenização → MiniLM → filtro) |
+| [`compressao_tokens.ipynb`](compressao_tokens.ipynb) | Poda de tokens etapa a etapa (`compressores.py`: baselines, SVD, leverage) |
+| [`avaliacao_metricas.ipynb`](avaliacao_metricas.ipynb) | Métricas etapa a etapa (`metricas.py`: $C$, $E_k$, $R_k$, Ridge, acurácia) |
+| [`trabalho_final.ipynb`](trabalho_final.ipynb) | Análise compilada: grade experimental e validação vs artigo |
 
 ## Resultados esperados
 
@@ -80,13 +90,16 @@ Referências auxiliares: E_k^energia ≈ 0,951; T̄ ≈ 209 tokens/review; D = 3
 |---------|--------|
 | `Makefile` | Atalhos: `install`, `test`, `experiment` |
 | `dados.py` | IMDb balanceado + split estratificado |
-| `embeddings.py` | MiniLM token-level → matriz F |
+| `embeddings.py` | MiniLM token-level → matriz $F$ (sem modo sintético) |
 | `compressores.py` | 6 operadores de poda |
 | `metricas.py` | Acurácia, E_k, R_k, compressão |
 | `experimento.py` | Grade experimental (CLI) |
 | `visualizacao.py` | Figura trade-off |
 | `llm_sanidade.py` | Checagem exploratória GPT-2 (opcional) |
 | `testes.py` | Testes unitários |
-| `trabalho_final.ipynb` | Notebook pedagógico |
+| `extracao_embedding.ipynb` | Notebook: extração de $F$ passo a passo |
+| `compressao_tokens.ipynb` | Notebook: operadores de poda passo a passo |
+| `avaliacao_metricas.ipynb` | Notebook: métricas e avaliação downstream passo a passo |
+| `trabalho_final.ipynb` | Notebook: resultados e validação do artigo |
 
 Artefatos CSV/PNG não são versionados — regenerar com `make experiment` ou `python experimento.py`. Detalhes metodológicos e validação automática: ver notebook.
