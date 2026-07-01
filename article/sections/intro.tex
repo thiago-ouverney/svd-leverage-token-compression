@@ -12,8 +12,8 @@ Neste relatório de Álgebra Linear Computacional (ALC), isolamos esse operador 
 
 Para quantificar perda de informação, materializamos o fluxo \textbf{texto $\to$ embedding $F$ $\to$ poda $\to$ avaliação} sobre \textbf{reviews longas do IMDb} ($\approx$400 amostras, $\bar{T}\approx 209$ tokens): textos redundantes, sentimento binário supervisionado e comprimento compatível com a motivação de compressão. Cada operador reduz $F$ a $F[S,:]$; treino e teste passam pela mesma poda antes de qualquer medição (Seção~\ref{sec:pipeline}). Usamos dois proxies complementares:
 \begin{itemize}
-    \item \textbf{Algébrico}: compressão $C$ e, para métodos SVD, energia espectral $E_k^{\mathrm{energia}}$ do subespaço truncado;
-    \item \textbf{Supervisionado}: acurácia de sentimento após pooling médio das linhas podadas, normalização $L_2$ e classificador ridge; \texttt{full} (sem poda) serve de teto.
+    \item \textbf{Algébrico}: compressão $C$ e, para métodos SVD, energia espectral $E_k^{\mathrm{energia}}$ e fidelidade de reconstrução $R_k$ do subespaço truncado;
+    \item \textbf{Supervisionado}: acurácia de sentimento após pooling médio das linhas podadas, normalização $L_2$ e classificador ridge; \texttt{full} (sem poda) serve de referência sem compressão.
 \end{itemize}
 Consideramos \emph{menor perda} quando, à compressão equivalente, a acurácia se aproxima mais de \texttt{full} do que nas heurísticas comparadas. Interpretamos o encadeamento teórico (Gram--Schmidt, espectral, $F^\top F$, posto) \cite{alc21svd,alc19espectral,alc11base}; não replicamos agentes nem VLMs completos, e os proxies medem degradação do operador algébrico, não equivalência de saída generativa.
 

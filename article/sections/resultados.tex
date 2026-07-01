@@ -1,8 +1,24 @@
 \section{Resultados}\label{sec:resultados}
 
-\subsection{Configuração}
+\subsection{Configuração experimental}
 
-Executamos a grade completa de hiperparâmetros (Seção~\ref{sec:protocolo}) sobre $\approx$400 reviews IMDb balanceadas (200/classe), split estratificado 70/30, truncamento em 256 tokens, $\sim$156\,s em CPU com embeddings cacheados uma única vez.\footnote{Código e dados reprodutíveis: \url{https://github.com/thiago-ouverney/svd-leverage-token-compression}.} Cada combinação $(\mathrm{método}, \varepsilon, \rho)$ produz um valor único de acurácia. Classificador: Ridge binário ($\lambda=1$) sobre pooling médio + normalização $L_2$. A Figura~\ref{fig:epsilon-k} mostra os cortes $k(\varepsilon)$ na curva de energia espectral; a Figura~\ref{fig:tradeoff} resume o trade-off acurácia $\times$ compressão em três painéis (um por $\varepsilon$).
+Executamos a grade completa de hiperparâmetros (Seção~\ref{sec:protocolo}) sobre $\approx$400 reviews IMDb balanceadas (200/classe), split estratificado 70/30, truncamento em 256 tokens.\footnote{Código e dados reprodutíveis: \url{https://github.com/thiago-ouverney/svd-leverage-token-compression}.}
+\begin{itemize}
+    \item \textbf{Unidade experimental}: cada review como matriz $F \in \mathbb{R}^{T \times D}$ (Seção~\ref{sec:svd-por-documento}); $\bar{T}\approx 209$ linhas após remoção de tokens especiais.
+    \item \textbf{Avaliação downstream}: Ridge binário ($\lambda=1$) sobre pooling médio e normalização $L_2$ (Seção~\ref{sec:protocolo-clf}); mede se a seleção algébrica de linhas preserva sinal supervisionado.
+    \item \textbf{Referência}: \texttt{full}, sem poda, como baseline sem compressão.
+\end{itemize}
+
+\subsection{Diagnóstico espectral: efeito de $\varepsilon$}
+
+Observa-se na curva de energia acumulada (Figura~\ref{fig:epsilon-k}) que parte da energia de $F$ concentra-se nos primeiros modos singulares. Com o aumento de $\varepsilon$, o subespaço dominante ganha dimensão: $\bar{k}$ passa de 34,1 para 50,1 e 92,4 para $\varepsilon=0{,}90$, $0{,}95$ e $0{,}99$ (Tabela~\ref{tab:metricas-eps}).
+
+Dois papéis distintos aparecem no operador:
+\begin{itemize}
+    \item \textbf{$\varepsilon$}: controla a dimensão do subespaço usado para calcular os leverage scores.
+    \item \textbf{$\rho$}: controla quantas linhas são mantidas após o ranqueamento.
+\end{itemize}
+Tem-se como evidência de que $E_k^{\mathrm{energia}}$, $\bar{R}_k$ e $\bar{k}$ variam com $\varepsilon$ e permanecem invariantes a $\rho$ dentro de cada limiar: essas métricas caracterizam o subespaço truncado $F_k$, e não a seleção final $S$.
 
 \begin{figure}[ht]
     \centering
@@ -11,20 +27,40 @@ Executamos a grade completa de hiperparâmetros (Seção~\ref{sec:protocolo}) so
     \label{fig:epsilon-k}
 \end{figure}
 
+\begin{table}[ht]
+    \centering
+    \caption{$\bar{k}$, $E_k^{\mathrm{energia}}$ e $\bar{R}_k$ para \texttt{svd} por $\varepsilon$ (média no corpus; invariantes a $\rho$).}
+    \label{tab:metricas-eps}
+    \small
+    \begin{tabular}{lccc}
+        \hline
+        $\varepsilon$ & $\bar{k}$ & $E_k^{\mathrm{energia}}$ & $\bar{R}_k$ \\
+        \hline
+        0,90 & 34,1 & 0,903 & 0,688 \\
+        0,95 & 50,1 & 0,951 & 0,779 \\
+        0,99 & 92,4 & 0,990 & 0,901 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Compressão e acurácia downstream}
+
+Com $\bar{T}\approx 209$ tokens por review, o corpus permite poda em sequências mais longas que em bases de notícias curtas. Mesmo em $\rho=0{,}125$, mantém-se em média $\bar{T'}\approx 26$ tokens por review. A acurácia downstream situa-se entre $\approx 0{,}68$ e $0{,}79$. As Tabelas~\ref{tab:imdb-e90} a \ref{tab:imdb-e99} detalham os resultados por $\varepsilon$; a Figura~\ref{fig:tradeoff} resume o trade-off acurácia $\times$ compressão.
+
+Destaques:
+\begin{itemize}
+    \item \textbf{Melhor configuração}: \texttt{svd}, $\varepsilon=0{,}99$, $\rho=0{,}50$, com acurácia 0,792, acima da referência sem poda (0,750) neste proxy.
+    \item \textbf{Efeito de $\varepsilon$ em \texttt{svd}}: para $\rho=0{,}50$, a acurácia passa de 0,750 ($\varepsilon=0{,}90$) para 0,783 ($\varepsilon=0{,}95$) e 0,792 ($\varepsilon=0{,}99$); para $\rho=0{,}125$, de 0,683 para 0,725.
+    \item \textbf{Baseline \texttt{random}}: em $\rho=0{,}25$, atinge 0,775, empatando com o melhor \texttt{svd}; em $\rho=0{,}125$, fica em 0,700 frente a 0,725 de \texttt{svd} no melhor $\varepsilon$.
+    \item \textbf{Leitura}: o ganho de \texttt{svd} depende do orçamento $\rho$ e da riqueza do subespaço ($\varepsilon$); \texttt{random} não varia com $\varepsilon$.
+\end{itemize}
+
 \begin{figure}[ht]
     \centering
     \includegraphics[width=\linewidth]{figures/tradeoff_acerto_compressao.png}
     \caption{Acurácia downstream $\times$ compressão (IMDb), facetada por $\varepsilon$. Cada painel compara os quatro métodos nos três níveis de $\rho$.}
     \label{fig:tradeoff}
 \end{figure}
-
-\subsection{IMDb (sentimento binário)}
-
-Com $\bar{T}\approx 209$ tokens após remoção de especiais e $\bar{T'}\approx 26$ para $\rho=0{,}125$, a poda opera sobre sequências substancialmente mais longas que em bases de notícias curtas. A acurácia downstream situa-se em $\approx 0{,}68$--$0{,}79$; interpretamos como avaliação de um \textbf{operador algébrico em proxy controlado}. As Tabelas~\ref{tab:imdb-e90}--\ref{tab:imdb-e99} comparam métodos por $\varepsilon$; a Tabela~\ref{tab:metricas-eps} resume $\bar{k}$ e $E_k^{\mathrm{energia}}$.
-
-Destaques: \texttt{full} ($0{,}750$) serve de teto em todos os painéis. Com $\varepsilon=0{,}99$ e $\rho=0{,}5$, \texttt{svd} atinge $0{,}792$ (melhor resultado global); com $\varepsilon=0{,}90$, o mesmo orçamento cai para $0{,}750$. \texttt{svd\_energia} permanece abaixo de \texttt{svd} na maioria dos pares, especialmente em $\rho=0{,}125$ ($0{,}675$ vs.\ $0{,}683$--$0{,}725$ conforme $\varepsilon$). \texttt{random} é forte em $\rho=0{,}25$ ($0{,}775$), independente de $\varepsilon$.
-
-Para SVD, $E_k^{\mathrm{energia}}$ e $\bar{k}$ variam com $\varepsilon$ (Tabela~\ref{tab:metricas-eps}) e permanecem invariantes a $\rho$ dentro de cada $\varepsilon$: confirma que essas métricas medem o subespaço truncado $F_k$, e não a seleção $S$.
 
 \begin{table}[ht]
     \centering
@@ -77,26 +113,29 @@ Para SVD, $E_k^{\mathrm{energia}}$ e $\bar{k}$ variam com $\varepsilon$ (Tabela~
     \end{tabular}
 \end{table}
 
-\begin{table}[ht]
-    \centering
-    \caption{$\bar{k}$ e $E_k^{\mathrm{energia}}$ para \texttt{svd} por $\varepsilon$ (média no corpus; invariante a $\rho$).}
-    \label{tab:metricas-eps}
-    \small
-    \begin{tabular}{lcc}
-        \hline
-        $\varepsilon$ & $\bar{k}$ & $E_k^{\mathrm{energia}}$ \\
-        \hline
-        0,90 & 34,1 & 0,903 \\
-        0,95 & 50,1 & 0,951 \\
-        0,99 & 92,4 & 0,990 \\
-        \hline
-    \end{tabular}
-\end{table}
+\subsection{Pooling médio e poda moderada}\label{sec:pooling-poda}
 
-\subsection{Discussão}
+Em $\rho=0{,}50$ e $\varepsilon=0{,}99$, \texttt{svd} supera levemente \texttt{full} (0,792 vs.\ 0,750; Tabela~\ref{tab:imdb-e99}). Não interpretamos isso como generalização \emph{cross-corpus}: a SVD é por documento e não supervisionada. A hipótese mais plausível, dado o protocolo de avaliação (Seção~\ref{sec:protocolo-clf}), é que a \textbf{poda melhore o pooling médio} usado como representação da review.
 
-A grade $\varepsilon \times \rho$ separa dois efeitos: $\rho$ controla a compressão $C$ (e portanto $T'$), enquanto $\varepsilon$ controla a dimensão do subespaço ($\bar{k}$) e a energia espectral preservada. Ao mesmo $\rho$, aumentar $\varepsilon$ melhora consistentemente a acurácia de \texttt{svd} --- o ranking de leverage scores em subespaço mais rico preserva melhor o sinal downstream. Já \texttt{svd\_energia} não acompanha esse ganho e degrada em compressão agressiva.
+Com \texttt{full}, agregamos $\bar{T}\approx 209$ linhas de $F$ por média aritmética antes da normalização $L_2$ e do Ridge. Em reviews longas e redundantes, muitos subtokens contribuem pouco ao subespaço dominante da matriz --- enredo, repetições, trechos neutros --- mas entram com peso igual no pooling, \textbf{diluindo} o vetor agregado em $\mathbb{R}^D$. Com \texttt{svd} em $\rho=0{,}50$, mantêm-se $\bar{T'}\approx 105$ linhas ranqueadas por leverage no subespaço $F_k$; tokens de alta participação estrutural passam a pesar mais na média \emph{por exclusão} dos demais, produzindo um embedding de documento potencialmente mais \textbf{concentrado} para a tarefa de sentimento.
 
-Reviews longas oferecem mais espaço para poda: mesmo com $\rho=0{,}125$, mantemos $\bar{T'}\approx 26$ tokens. A SVD não supera sistematicamente o baseline aleatório em todos os níveis de $C$; \texttt{random} permanece forte em $\rho=0{,}25$. Contrastamos poda \textbf{estrutural} com seleção \textbf{semântica} em agentes \cite{zhang2026fastcontext}; trabalhos futuros incluem compressão \emph{query-aware} e validação em cenário sintético controlado (Seção~\ref{sec:conclusao}).
+Dois elementos modulam essa leitura. Primeiro, o ganho de \texttt{svd} sobre \texttt{full} em $\rho=0{,}50$ só aparece claramente quando $\varepsilon$ é alto (0,750 em $\varepsilon=0{,}90$; 0,792 em $\varepsilon=0{,}99$): um subespaço $F_k$ mais rico ($\bar{k}\approx 92$) refina o ranqueamento antes da poda. Segundo, \texttt{random} também supera \texttt{full} em $\rho=0{,}25$ (0,775), o que indica que \textbf{reduzir o número de linhas agregadas} por si só pode ajudar neste proxy; o leverage acrescenta vantagem sobretudo em compressão mais agressiva ($\rho=0{,}125$) e quando $\varepsilon$ é elevado.
+\subsection{Leitura algébrica dos métodos}
 
-IMDb oferece reviews longas e redundantes, com rótulo de sentimento binário como proxy supervisionado (Seção~\ref{sec:intro}). Não simula agentes nem janelas de milhões de tokens; o encoder compacto (\texttt{all-MiniLM-L6-v2}) isola o operador algébrico, sem avaliar LLMs completos nem pipelines de agente. Interpretamos os resultados como evidência do operador em proxy controlado, não como benchmark de classificação em larga escala nem como garantia de comportamento em modelos generativos.
+\texttt{svd} e \texttt{svd\_energia} compartilham a mesma decomposição singular, mas produzem rankings distintos:
+\begin{itemize}
+    \item \textbf{\texttt{svd}}: leverage clássico ($\ell_i/k$).
+    \item \textbf{\texttt{svd\_energia}}: participação das linhas ponderada pelos valores singulares.
+\end{itemize}
+\texttt{svd\_energia} permanece abaixo de \texttt{svd} na maioria dos pares $(\varepsilon, \rho)$ e atinge 0,675 em $\rho=0{,}125$, independente de $\varepsilon$. Ponderar por $\Sigma_k$ concentra o ranking nos modos de maior energia; componentes menos dominantes podem ainda carregar sinal discriminativo para sentimento. Preservar energia espectral e preservar sinal downstream não coincidem necessariamente.
+
+\subsection{Síntese dos achados}
+
+Em relação às perguntas da Seção~\ref{sec:metodologia}:
+\begin{enumerate}
+    \item \textbf{Leverage score e acurácia}: a seleção por leverage mantém acurácia competitiva em compressão moderada; empata com \texttt{random} em $\rho=0{,}25$ (0,775) e supera em $\rho=0{,}125$ (0,725 vs.\ 0,700).
+    \item \textbf{\texttt{svd\_energia} vs.\ \texttt{svd}}: a variante ponderada difere de \texttt{svd} e piora em $\rho$ baixo.
+    \item \textbf{Invariância espectral a $\rho$}: $E_k^{\mathrm{energia}}$, $\bar{R}_k$ e $\bar{k}$ variam com $\varepsilon$ e permanecem invariantes a $\rho$ (Tabela~\ref{tab:metricas-eps}); medem $F_k$, não $S$.
+\end{enumerate}
+
+No proxy IMDb, $\varepsilon$ define o subespaço $F_k$, os leverage scores convertem esse subespaço em importância por token, e $\rho$ aplica a poda. A comparação com \texttt{svd\_energia} indica que maximizar energia espectral nos modos dominantes não coincide com maximizar utilidade supervisionada.

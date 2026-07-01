@@ -29,7 +29,6 @@ CAMPOS_CSV = [
     "metodo", "epsilon", "orcamento", "semente", "modo",
     "acuracia_downstream", "energia_espectral", "fidelidade_reconstrucao",
     "compressao", "t_medio", "t_linha_medio", "k_medio", "custo_tempo_operador",
-    "custo_flops_densa", "proxy_atencao", "acerto_exploratorio",
 ]
 
 
@@ -59,7 +58,7 @@ def _processar_amostras(
     compressor = COMPRESSORES[metodo]
 
     vetores = [None] * len(amostras)
-    energias_espectrais, fidelidades, tempos, flops = [], [], [], []
+    energias_espectrais, fidelidades, tempos = [], [], []
     mantidos, t_originais, ks = [], [], []
 
     for i, F in enumerate(amostras):
@@ -77,10 +76,6 @@ def _processar_amostras(
         t_originais.append(F.shape[0])
         if info.get("k") is not None:
             ks.append(info["k"])
-        if metodo in ("svd", "svd_energia"):
-            flops.append(metricas.flops_svd_densa(F.shape[0], F.shape[1]))
-        else:
-            flops.append(0)
 
     X_treino = np.vstack([vetores[i] for i in idx_treino])
     X_teste = np.vstack([vetores[i] for i in idx_teste])
@@ -109,9 +104,6 @@ def _processar_amostras(
         "t_linha_medio": t_linha_medio,
         "k_medio": k_medio,
         "custo_tempo_operador": float(np.mean(tempos)),
-        "custo_flops_densa": float(np.mean(flops)),
-        "proxy_atencao": metricas.proxy_atencao(t_medio, t_linha_medio),
-        "acerto_exploratorio": metricas.acerto(acc, r_k),
     }
 
 
@@ -212,7 +204,6 @@ def agregar(linhas):
             "t_medio": float(np.mean([g["t_medio"] for g in grupo])),
             "t_linha_medio": float(np.mean([g["t_linha_medio"] for g in grupo])),
             "custo_tempo_media": float(np.mean([g["custo_tempo_operador"] for g in grupo])),
-            "proxy_atencao": float(np.mean([g["proxy_atencao"] for g in grupo])),
         })
     return agregado
 

@@ -1,6 +1,6 @@
 \section{Metodologia}\label{sec:metodologia}
 
-Materializamos o operador de poda inspirado no SVD-Prune em um pipeline reprodutível sobre reviews IMDb. Comparamos operadores (\texttt{svd}, \texttt{svd\_energia} e baselines) sob o mesmo par $(\varepsilon, \rho)$, reportando acurácia downstream, compressão $C$ e, para métodos SVD, energia espectral $E_k^{\mathrm{energia}}$.
+Materializamos o operador de poda inspirado no SVD-Prune em um pipeline reprodutível sobre reviews IMDb. Comparamos operadores (\texttt{svd}, \texttt{svd\_energia} e baselines) sob o mesmo par $(\varepsilon, \rho)$, reportando acurácia downstream, compressão $C$ e, para métodos SVD, energia espectral $E_k^{\mathrm{energia}}$ e fidelidade de reconstrução $R_k$.
 
 Com os dados disponíveis, buscamos responder:
 \begin{enumerate}
@@ -24,7 +24,7 @@ Para cada review $i$, a SVD, a escolha de $k$ via $\varepsilon$ e os leverage sc
     \item Como $T_i$ varia por review, não existe, sem padding ou truncamento artificial, uma única matriz retangular natural que represente o universo de sequências.
 \end{itemize}
 
-No pipeline (Seção~\ref{sec:pipeline}), treino e teste passam pelo \textbf{mesmo} operador por documento; o rótulo de sentimento só entra \textbf{depois} da poda, no classificador ridge --- a SVD permanece não supervisionada. Neste relatório não avaliamos variantes corpus-wide; comparação com baselines globais fica como extensão (Seção~\ref{sec:conclusao}).
+No pipeline (Seção~\ref{sec:pipeline}), treino e teste passam pelo \textbf{mesmo} operador por documento; o rótulo de sentimento só entra \textbf{depois} da poda, no classificador ridge --- a SVD permanece não supervisionada. Neste relatório não avaliamos variantes corpus-wide.
 
 \subsection{Pipeline experimental}\label{sec:pipeline}
 
@@ -36,7 +36,7 @@ O fluxo segue quatro etapas:
     \item \textbf{Compressão}: operador de poda (Algoritmo~\ref{alg:svd-prune} ou baseline), produzindo $F[S,:]$.
     \item \textbf{Avaliação em paralelo} (reportada separadamente):
     \begin{itemize}
-        \item \textbf{(A) Métricas algébricas}: compressão $C$; para SVD, $E_k^{\mathrm{energia}}$ sobre $F_k$.
+        \item \textbf{(A) Métricas algébricas}: compressão $C$; para SVD, $E_k^{\mathrm{energia}}$ e $R_k$ sobre $F_k$.
         \item \textbf{(B) Agregação e classificação} (Seção~\ref{sec:protocolo-clf}): de $F[S,:]$ a acurácia de sentimento.
     \end{itemize}
 \end{enumerate}
@@ -85,7 +85,7 @@ Com $\bar{T}\approx 209$, $\rho=0{,}5$ implica $\bar{T'}\approx 105$ linhas pres
 Sob o mesmo $\rho$, avaliamos quatro operadores:
 
 \begin{itemize}
-    \item \textbf{full}: mantém todos os tokens (teto de referência).
+    \item \textbf{full}: mantém todos os tokens (referência sem poda).
     \item \textbf{random}: seleciona $T'$ tokens uniformemente ao acaso (semente fixa 0).
     \item \textbf{svd}: leverage clássico $s_i^{\mathrm{SVD}} = \ell_i/k$ (Seção~\ref{sec:leverage}).
     \item \textbf{svd\_energia}: leverage ponderado $\ell_i^{(\Sigma)} = \|U_k[i,:]\Sigma_k\|_2^2$.
@@ -117,7 +117,7 @@ Após a poda, cada review fica representada por $F[S,:] \in \mathbb{R}^{T' \time
 
 Fixamos $T' = \max(1, \lfloor \rho T \rfloor)$ (Seção~\ref{sec:baselines}) porque, se $T'=0$, $F[S,:]$ ficaria vazia e o pooling não teria linhas para agregar; o $\max(1,\cdot)$ garante ao menos um subtoken antes da agregação. Em seguida, aplicamos \textbf{normalização $L_2$} a $\bar{\mathbf{f}}$, dividindo-o por $\|\bar{\mathbf{f}}\|_2$, para que todos os métodos fiquem na mesma escala antes do ridge\footnote{Norma $L_2$: $\|\mathbf{v}\|_2 = \sqrt{\sum_j v_j^2}$; após normalização, $\|\mathbf{v}\|_2=1$.}. Treinamos um classificador \textbf{ridge} binário ($\lambda = 1$) sobre o corpus da Seção~\ref{sec:corpus}.
 
-Treino e teste passam pelo \textbf{mesmo operador} e $\rho$ antes da agregação e da classificação; \texttt{full} serve de teto. Comparamos métodos à mesma $\rho$: menor queda de acurácia em relação a \texttt{full} indica menor perda no proxy supervisionado (Seção~\ref{sec:intro}).
+Treino e teste passam pelo \textbf{mesmo operador} e $\rho$ antes da agregação e da classificação; \texttt{full} serve de referência sem poda. Comparamos métodos à mesma $\rho$: menor queda de acurácia em relação a \texttt{full} indica menor perda no proxy supervisionado (Seção~\ref{sec:intro}).
 
 \subsection{Hiperparâmetros e grid experimental}\label{sec:protocolo}
 
@@ -145,7 +145,7 @@ Código: \url{https://github.com/thiago-ouverney/svd-leverage-token-compression}
 
 \subsection{Métricas}\label{sec:metricas}
 
-Reportamos os dois proxies da Seção~\ref{sec:intro}: \textbf{(A)} algébrico ($C$, $E_k^{\mathrm{energia}}$) e \textbf{(B)} supervisionado (acurácia downstream).
+Reportamos os dois proxies da Seção~\ref{sec:intro}: \textbf{(A)} algébrico ($C$, $E_k^{\mathrm{energia}}$, $R_k$) e \textbf{(B)} supervisionado (acurácia downstream).
 
 \begin{description}
     \item[Compressão]
@@ -163,6 +163,12 @@ Reportamos os dois proxies da Seção~\ref{sec:intro}: \textbf{(A)} algébrico (
         \frac{\sum_{j=1}^{k}\sigma_j^2}{\sum_{j=1}^{r}\sigma_j^2}.
     \end{equation*}
     Indica quanto da variância espectral de $F$ o subespaço truncado captura. Usada para escolher $k$ (via $\varepsilon$) e reportada para métodos SVD; baselines não-SVD registram $\mathrm{NaN}$.
+
+    \item[Fidelidade de reconstrução]
+    \begin{equation*}
+        R_k = 1 - \frac{\|F - F_k\|_F}{\|F\|_F}.
+    \end{equation*}
+    Mede o erro relativo de $F_k = U_k \Sigma_k V_k^\top$ em norma de Frobenius. Reportada para métodos SVD; depende de $F_k$, não da seleção $S$; baselines registram $\mathrm{NaN}$.
 \end{description}
 
 \begin{table}[ht]
@@ -180,6 +186,7 @@ Reportamos os dois proxies da Seção~\ref{sec:intro}: \textbf{(A)} algébrico (
         $C$, $\bar{T}$, $\bar{T'}$ & compressão e comprimentos médios \\
         acc & acurácia downstream \\
         $E_k^{\mathrm{energia}}$ & energia espectral preservada \\
+        $R_k$ & fidelidade de reconstrução ($F_k$ vs.\ $F$) \\
         \hline
     \end{tabular}
 \end{table}

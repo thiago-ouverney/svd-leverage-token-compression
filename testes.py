@@ -48,7 +48,6 @@ def teste_metricas_basicas():
     _, _, info = cp.comprimir_svd(_matriz_teste(n_tokens=16, dim=10, semente=1), 0.5)
     E = metricas.energia_espectral_preservada(info)
     assert E >= 0.95
-    assert metricas.flops_svd_densa(64, 48) == min(64 * 48 * 48, 64 * 64 * 48)
 
 
 def teste_determinismo():
