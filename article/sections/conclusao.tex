@@ -6,7 +6,7 @@ No IMDb ($\approx$400 reviews, $\bar{T}\approx 209$ tokens, Ridge + $L_2$, split
 
 Do ponto de vista de ALC, o trabalho exercita ortogonalização e mudança de base \cite{alc11base}, teorema espectral e PSD \cite{alc19espectral}, SVD retangular e posto \cite{alc21svd,alcposto}, além de produto interno e normas \cite{alc04produto}. As limitações de escopo (corpus IMDb, encoder compacto, proxy de sentimento) são discutidas na Seção~\ref{sec:resultados}.
 
-Trabalhos futuros: integração em \texttt{inputs\_embeds} de LLM, bases complementares (AG News, 20 Newsgroups) e compressão \emph{query-aware} \cite{zhang2026fastcontext}.
+Trabalhos futuros: integração em \texttt{inputs\_embeds} de LLM, bases complementares (AG News, 20 Newsgroups), compressão \emph{query-aware} \cite{zhang2026fastcontext} e contraste com operadores de poda baseados em SVD \textbf{global} no corpus.
 
 \paragraph{Trabalhos futuros: sanidade sintética controlada.}
 Como extensão natural, propomos um modo sintético em que as linhas de $F$ se dividem em três grupos --- \emph{informativas} ($I_{\mathrm{info}}$, com deslocamento de classe $\mu_y$), \emph{redundantes} ($I_{\mathrm{red}}$, geradas por base latente de posto $p$) e \emph{ruído} ($I_{\mathrm{ruido}}$, sem sinal de classe). Esse desenho permitiria testar se leverage score identifica linhas estruturalmente relevantes quando a estrutura de baixo posto e os tokens úteis são conhecidos por construção --- cenário ausente no sintético $F = AB^\top + \mathbf{1}\mu_y^\top + \eta$ usado apenas em testes unitários.

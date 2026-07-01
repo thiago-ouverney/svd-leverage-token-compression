@@ -11,7 +11,20 @@ Com os dados disponíveis, buscamos responder:
 
 \subsection{Corpus IMDb}\label{sec:corpus}
 
-Utilizamos um subconjunto balanceado de \textbf{400 reviews} do IMDb (200 negativas, 200 positivas), com split estratificado 70/30 entre treino e teste (semente 42). A \textbf{unidade experimental} é cada review: um texto bruto que, após o encoder, vira uma matriz $F^{(i)} \in \mathbb{R}^{T_i \times D}$; não há uma matriz global única do corpus, e sim 400 matrizes, uma por documento. Em média, $\bar{T} \approx 209$ \textbf{linhas} (subtokens de conteúdo; ver Seção~\ref{sec:construcao-f}) e $D = 384$ \textbf{colunas} (dimensão do embedding; Tabela~\ref{tab:modos}).
+Utilizamos um subconjunto balanceado de \textbf{400 reviews} do IMDb (200 negativas, 200 positivas), com split estratificado 70/30 entre treino e teste (semente 42). A \textbf{unidade experimental} é cada review: um texto bruto que, após o encoder, vira uma matriz $F^{(i)} \in \mathbb{R}^{T_i \times D}$; não há uma matriz global única do corpus, e sim 400 matrizes, uma por documento (Seção~\ref{sec:svd-por-documento}). Em média, $\bar{T} \approx 209$ \textbf{linhas} (subtokens de conteúdo; ver Seção~\ref{sec:construcao-f}) e $D = 384$ \textbf{colunas} (dimensão do embedding; Tabela~\ref{tab:modos}).
+
+\subsection{SVD por documento, não global}\label{sec:svd-por-documento}
+
+Para cada review $i$, a SVD, a escolha de $k$ via $\varepsilon$ e os leverage scores são computados \textbf{somente} a partir de $F^{(i)}$. O objetivo é reduzir $T_i \to T_i'$ mantendo linhas representativas da estrutura espectral \emph{daquela} matriz (Algoritmo~\ref{alg:svd-prune}), e não modelar o corpus inteiro de uma só vez.
+
+\textbf{Por que não uma SVD global?} Alternativas agregadas responderiam a perguntas distintas da poda token-level:
+\begin{itemize}
+    \item \textbf{Empilhar} todas as linhas de todos os documentos numa matriz $(\sum_i T_i) \times D$ faria os scores compararem tokens \emph{entre} reviews; a poda deixaria de ser intra-sequência.
+    \item \textbf{SVD em estatísticas de corpus} (p.ex.\ agregar $F^\top F$ ou covariâncias entre documentos) reduz dimensionalidade em $\mathbb{R}^D$ \emph{entre amostras}, não seleciona quais linhas manter em cada texto.
+    \item Como $T_i$ varia por review, não existe, sem padding ou truncamento artificial, uma única matriz retangular natural que represente o universo de sequências.
+\end{itemize}
+
+No pipeline (Seção~\ref{sec:pipeline}), treino e teste passam pelo \textbf{mesmo} operador por documento; o rótulo de sentimento só entra \textbf{depois} da poda, no classificador ridge --- a SVD permanece não supervisionada. Neste relatório não avaliamos variantes corpus-wide; comparação com baselines globais fica como extensão (Seção~\ref{sec:conclusao}).
 
 \subsection{Pipeline experimental}\label{sec:pipeline}
 
