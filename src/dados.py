@@ -1,6 +1,4 @@
 # Carregamento da base IMDb (subconjunto balanceado para CPU).
-#
-# Requer: pip install datasets  (secao opcional do requirements.txt)
 
 import numpy as np
 from sklearn.model_selection import train_test_split

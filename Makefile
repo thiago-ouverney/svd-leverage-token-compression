@@ -1,25 +1,24 @@
-.PHONY: help install install-experiment test experiment
+.PHONY: help setup experiment
 
-PYTHON ?= python3
-PIP ?= pip
-SRC = src
-export PYTHONPATH := $(CURDIR)/$(SRC)
+VENV = .venv
+PYTHON = $(VENV)/bin/python
+PIP = $(VENV)/bin/pip
+TORCH_INDEX = https://download.pytorch.org/whl/cpu
+KERNEL_NAME = svd-leverage
 
 help:
 	@echo "Targets:"
-	@echo "  make install             deps minimas (numpy, matplotlib)"
-	@echo "  make install-experiment  deps completas para IMDb"
-	@echo "  make test                testes unitarios"
-	@echo "  make experiment          grade experimental IMDb"
+	@echo "  make setup       cria .venv, instala deps (pyproject.toml) e kernel Jupyter"
+	@echo "  make experiment  grade experimental IMDb (400 amostras, 256 tokens)"
 
-install:
-	$(PIP) install -r requirements.txt
+setup: $(VENV)/bin/python
+	$(PIP) install --upgrade pip
+	$(PIP) install torch --index-url $(TORCH_INDEX)
+	$(PIP) install -e .
+	$(PYTHON) -m ipykernel install --user --name $(KERNEL_NAME) --display-name "Python (svd-leverage)"
 
-install-experiment: install
-	$(PIP) install datasets transformers torch
+$(VENV)/bin/python:
+	python3 -m venv $(VENV)
 
-test: install
-	$(PYTHON) testes.py
-
-experiment: install-experiment
-	$(PYTHON) $(SRC)/experimento.py --max-amostras 400 --max-tokens 256
+experiment: setup
+	$(PYTHON) src/experimento.py --max-amostras 400 --max-tokens 256
