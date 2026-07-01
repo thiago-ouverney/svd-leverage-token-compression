@@ -9,7 +9,7 @@
 
 import numpy as np
 
-RIDGE_LAMBDA = 1.0
+from constantes import RIDGE_LAMBDA
 
 
 def compressao(n_tokens, n_mantidos):

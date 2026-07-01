@@ -10,17 +10,21 @@ import time
 import numpy as np
 
 from compressores import COMPRESSORES
+from constantes import (
+    MAX_AMOSTRAS,
+    MAX_TOKENS,
+    METODOS_DETERMINISTICOS,
+    N_POR_CLASSE,
+    ORCAMENTOS,
+    PASTA_RESULTADOS,
+    SEED,
+    SEMENTES,
+)
 from dados import carregar_imdb, dividir_indices_estratificado
 from embeddings import texto_para_embedding
 import llm_sanidade
 import metricas
 import visualizacao
-
-
-ORCAMENTOS = [0.75, 0.5, 0.25, 0.125]
-SEMENTES = [0, 1, 2]
-PASTA_RESULTADOS = os.path.join(os.path.dirname(__file__), "resultados")
-METODOS_DETERMINISTICOS = {"full", "norm", "first", "svd", "svd_energia"}
 
 CAMPOS_CSV = [
     "metodo", "orcamento", "semente", "modo",
@@ -36,7 +40,7 @@ def pooling(F):
     return v / n if n > 0 else v
 
 
-def carregar_dados(n_por_classe=200, max_amostras=400, max_tokens=256):
+def carregar_dados(n_por_classe=N_POR_CLASSE, max_amostras=MAX_AMOSTRAS, max_tokens=MAX_TOKENS):
     textos, rotulos = carregar_imdb(
         n_por_classe=n_por_classe, max_amostras=max_amostras,
     )
@@ -108,12 +112,12 @@ def _processar_amostras(amostras, rotulos, metodo, orcamento, idx_treino, idx_te
     }
 
 
-def rodar_grade(max_amostras=400, max_tokens=256):
+def rodar_grade(max_amostras=MAX_AMOSTRAS, max_tokens=MAX_TOKENS):
     linhas = []
     amostras, rotulos, textos, tempo_embed = carregar_dados(
         max_amostras=max_amostras, max_tokens=max_tokens,
     )
-    idx_treino, idx_teste = dividir_indices_estratificado(rotulos, semente=42)
+    idx_treino, idx_teste = dividir_indices_estratificado(rotulos, semente=SEED)
     for semente in SEMENTES:
         for metodo in COMPRESSORES:
             for orcamento in ORCAMENTOS:
@@ -196,8 +200,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Compressao de tokens via SVD + leverage scores (IMDb)"
     )
-    parser.add_argument("--max-amostras", type=int, default=400)
-    parser.add_argument("--max-tokens", type=int, default=256)
+    parser.add_argument("--max-amostras", type=int, default=MAX_AMOSTRAS)
+    parser.add_argument("--max-tokens", type=int, default=MAX_TOKENS)
     parser.add_argument("--sanidade-gpt2", action="store_true")
     args = parser.parse_args()
 

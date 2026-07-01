@@ -5,7 +5,7 @@
 
 import numpy as np
 
-TOL_SINGULAR = 1e-12
+from constantes import TOL_SINGULAR
 
 
 def _tokens_a_manter(n_tokens, orcamento):
@@ -30,14 +30,17 @@ def _info_base(k=None, reconstrucao=None, pontuacoes=None, energia_explicada=Non
 
 
 def _svd_decomposicao(F, variancia_explicada=0.95):
-    U, S, Vt = np.linalg.svd(F, full_matrices=False)
+    U, S, Vt = np.linalg.svd(F, full_matrices=False) # SVD economica
+    # Zerando valores singulares menores que TOL_SINGULAR
     S = np.where(S < TOL_SINGULAR, 0.0, S)
+    # Energia espectral
     energia = S ** 2
     total = np.sum(energia)
     if total <= TOL_SINGULAR:
         k = 1
-        acumulada = np.array([0.0])
+        acumulada = np.array([0.0]) # Caso degradado
     else:
+        # Acha o k para a variancia explicada
         acumulada = np.cumsum(energia) / total
         k = int(np.searchsorted(acumulada, variancia_explicada) + 1)
         k = max(1, min(k, len(S)))

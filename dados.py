@@ -3,11 +3,18 @@
 # Requer: pip install datasets  (secao opcional do requirements.txt)
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 
-N_CLASSES_IMDB = 2
+from constantes import (
+    FRACAO_TREINO,
+    MAX_AMOSTRAS,
+    N_CLASSES_IMDB,
+    N_POR_CLASSE,
+    SEED,
+)
 
 
-def carregar_imdb(n_por_classe=200, semente_split=42, max_amostras=None):
+def carregar_imdb(n_por_classe=N_POR_CLASSE, semente_split=SEED, max_amostras=MAX_AMOSTRAS):
     """
     Retorna textos e rotulos do subconjunto IMDb balanceado por classe.
 
@@ -51,23 +58,22 @@ def carregar_imdb(n_por_classe=200, semente_split=42, max_amostras=None):
     return textos, np.array(rotulos, dtype=int)
 
 
-def dividir_indices(n, fracao_treino=0.7, semente=42):
-    rng = np.random.default_rng(semente)
-    perm = rng.permutation(n)
-    corte = int(round(fracao_treino * n))
-    return perm[:corte], perm[corte:]
+def dividir_indices(n, fracao_treino=FRACAO_TREINO, semente=SEED):
+    indices = np.arange(n)
+    tr, te = train_test_split(
+        indices, train_size=fracao_treino, random_state=semente, shuffle=True,
+    )
+    return tr, te
 
 
-def dividir_indices_estratificado(rotulos, fracao_treino=0.7, semente=42):
-    """Split 70/30 estratificado por classe."""
-    rng = np.random.default_rng(semente)
-    rotulos = np.asarray(rotulos)
-    idx_treino, idx_teste = [], []
-    for classe in np.unique(rotulos):
-        idx_classe = np.where(rotulos == classe)[0]
-        rng.shuffle(idx_classe)
-        corte = int(round(fracao_treino * len(idx_classe)))
-        corte = max(1, min(corte, len(idx_classe) - 1)) if len(idx_classe) > 1 else 1
-        idx_treino.extend(idx_classe[:corte])
-        idx_teste.extend(idx_classe[corte:])
-    return np.array(idx_treino, dtype=int), np.array(idx_teste, dtype=int)
+def dividir_indices_estratificado(rotulos, fracao_treino=FRACAO_TREINO, semente=SEED):
+    """Split estratificado por classe."""
+    indices = np.arange(len(rotulos))
+    tr, te = train_test_split(
+        indices,
+        train_size=fracao_treino,
+        random_state=semente,
+        stratify=np.asarray(rotulos),
+        shuffle=True,
+    )
+    return tr.astype(int), te.astype(int)
