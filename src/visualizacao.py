@@ -88,7 +88,7 @@ def salvar_grafico_epsilon_k(amostras, epsilons, caminho):
 
 
 def salvar_grafico_tradeoff(agregado, caminho, epsilons=None):
-    epsilons = epsilons or EPSILONS
+    epsilons = sorted(epsilons or EPSILONS, reverse=True)
     n_eps = len(epsilons)
     fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 4.5), sharey=True)
     if n_eps == 1:
