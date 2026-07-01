@@ -29,7 +29,6 @@ py-modules = [
     "dados",
     "embeddings",
     "experimento",
-    "llm_sanidade",
     "metricas",
     "visualizacao",
 ]

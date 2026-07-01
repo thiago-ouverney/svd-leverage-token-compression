@@ -27,12 +27,6 @@ make experiment   # grade IMDb (~160 s CPU)
 
 Na primeira execução, o HuggingFace baixa `sentence-transformers/all-MiniLM-L6-v2` e o dataset `stanfordnlp/imdb`.
 
-Testes unitários (opcional, após `make setup`):
-
-```bash
-python testes.py
-```
-
 ## Uso
 
 Script principal ([`src/experimento.py`](src/experimento.py)):
@@ -40,7 +34,6 @@ Script principal ([`src/experimento.py`](src/experimento.py)):
 ```bash
 make experiment
 python src/experimento.py --max-amostras 400 --max-tokens 256
-python src/experimento.py --sanidade-gpt2   # opcional: checagem GPT-2
 SEED=42 make experiment   # seed do split treino/teste (variavel de ambiente)
 ```
 
@@ -111,8 +104,6 @@ Referências auxiliares: $\bar{k}$ ≈ 34 / 50 / 92 e $E_k^{\mathrm{energia}}$ �
 | `src/metricas.py` | Acurácia, E_k, R_k, compressão |
 | `src/experimento.py` | Grade experimental (CLI) |
 | `src/visualizacao.py` | Figuras trade-off e cortes ε–k |
-| `src/llm_sanidade.py` | Checagem exploratória GPT-2 (opcional) |
-| `testes.py` | Testes unitários |
 | `research/extracao_embedding.ipynb` | Notebook: extração de $F$ passo a passo |
 | `research/compressao_tokens.ipynb` | Notebook: operadores de poda passo a passo |
 | `research/avaliacao_metricas.ipynb` | Notebook: métricas e avaliação downstream passo a passo |

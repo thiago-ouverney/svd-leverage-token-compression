@@ -21,7 +21,6 @@ from constantes import (
 )
 from dados import carregar_imdb, dividir_indices_estratificado
 from embeddings import texto_para_embedding
-import llm_sanidade
 import metricas
 import visualizacao
 
@@ -232,7 +231,6 @@ def main():
     )
     parser.add_argument("--max-amostras", type=int, default=MAX_AMOSTRAS)
     parser.add_argument("--max-tokens", type=int, default=MAX_TOKENS)
-    parser.add_argument("--sanidade-gpt2", action="store_true")
     args = parser.parse_args()
 
     print("Trabalho Final ALC - Compressao de tokens (SVD + baselines)")
@@ -269,11 +267,6 @@ def main():
     ambiente["tempo_total_s"] = tempo_total
     ambiente["max_tokens"] = args.max_tokens
     ambiente["max_amostras"] = args.max_amostras
-
-    if args.sanidade_gpt2:
-        textos, _ = carregar_imdb(n_por_classe=5, max_amostras=5)
-        scores = llm_sanidade.executar_sanidade(textos, usar_gpt2=True, n_amostras=5)
-        print("Sanidade gpt2 (5 amostras):", scores)
 
     print("Resumo (media de acuracia por metodo, epsilon e orcamento):")
     for metodo, pontos in sorted(agregado.items()):

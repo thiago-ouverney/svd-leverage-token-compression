@@ -1,4 +1,4 @@
-# Figuras: trade-off Acuracia x Compressao, epsilon x k e custo por metodo.
+# Figuras: trade-off Acuracia x Compressao e epsilon x k.
 
 import numpy as np
 
@@ -126,33 +126,5 @@ def salvar_grafico_tradeoff(agregado, caminho, epsilons=None):
     fig.suptitle("Trade-off Acuracia x Compressao por epsilon", y=1.02)
     plt.tight_layout()
     plt.savefig(caminho, dpi=120, bbox_inches="tight")
-    plt.close()
-    return caminho
-
-
-def salvar_grafico_custo(agregado, caminho, epsilon_ref=0.95):
-    metodos_svd = [m for m in ("svd", "svd_energia", "full", "random")
-                   if m in agregado]
-    rho_ref = 0.5
-    tempos = []
-    labels = []
-    cores = []
-    for metodo in metodos_svd:
-        pts = {
-            p["orcamento"]: p for p in agregado[metodo]
-            if p["epsilon"] == epsilon_ref
-        }
-        if rho_ref in pts:
-            tempos.append(pts[rho_ref]["custo_tempo_media"])
-            labels.append(ROTULOS.get(metodo, metodo))
-            cores.append(CORES.get(metodo, "#333333"))
-
-    plt.figure(figsize=(7, 4))
-    plt.bar(labels, tempos, color=cores)
-    plt.ylabel("Tempo medio do operador (s)")
-    plt.title(f"Custo do operador por metodo (rho=0.5, eps={epsilon_ref})")
-    plt.xticks(rotation=20, ha="right")
-    plt.tight_layout()
-    plt.savefig(caminho, dpi=120)
     plt.close()
     return caminho
