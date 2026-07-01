@@ -71,21 +71,6 @@ def comprimir_random(F, orcamento, semente=0, **_):
     return indices, F[indices], _info_base(reconstrucao=None)
 
 
-def comprimir_norm(F, orcamento, semente=0, **_):
-    del semente
-    n_manter = _tokens_a_manter(F.shape[0], orcamento)
-    pontuacoes = np.linalg.norm(F, axis=1)
-    indices = selecionar_sob_orcamento(pontuacoes, n_manter)
-    return indices, F[indices], _info_base(pontuacoes=pontuacoes, reconstrucao=None)
-
-
-def comprimir_first(F, orcamento, semente=0, **_):
-    del semente
-    n_manter = _tokens_a_manter(F.shape[0], orcamento)
-    indices = np.arange(n_manter)
-    return indices, F[indices], _info_base(reconstrucao=None)
-
-
 def _comprimir_svd_core(F, orcamento, variancia_explicada, pontuar_fn, semente=0):
     del semente
     n_manter = _tokens_a_manter(F.shape[0], orcamento)
@@ -121,8 +106,6 @@ def comprimir_svd_energia(F, orcamento, semente=0, variancia_explicada=0.95, **_
 COMPRESSORES = {
     "full": comprimir_full,
     "random": comprimir_random,
-    "norm": comprimir_norm,
-    "first": comprimir_first,
     "svd": comprimir_svd,
     "svd_energia": comprimir_svd_energia,
 }

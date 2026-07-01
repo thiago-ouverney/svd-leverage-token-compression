@@ -11,14 +11,13 @@ import numpy as np
 
 from compressores import COMPRESSORES
 from constantes import (
+    EPSILONS,
     MAX_AMOSTRAS,
     MAX_TOKENS,
-    METODOS_DETERMINISTICOS,
     N_POR_CLASSE,
     ORCAMENTOS,
     PASTA_RESULTADOS,
     SEED,
-    SEMENTES,
 )
 from dados import carregar_imdb, dividir_indices_estratificado
 from embeddings import texto_para_embedding
@@ -27,9 +26,9 @@ import metricas
 import visualizacao
 
 CAMPOS_CSV = [
-    "metodo", "orcamento", "semente", "modo",
+    "metodo", "epsilon", "orcamento", "semente", "modo",
     "acuracia_downstream", "energia_espectral", "fidelidade_reconstrucao",
-    "compressao", "t_medio", "t_linha_medio", "custo_tempo_operador",
+    "compressao", "t_medio", "t_linha_medio", "k_medio", "custo_tempo_operador",
     "custo_flops_densa", "proxy_atencao", "acerto_exploratorio",
 ]
 
@@ -53,36 +52,38 @@ def carregar_dados(n_por_classe=N_POR_CLASSE, max_amostras=MAX_AMOSTRAS, max_tok
     return amostras, rotulos, textos, tempo_embedding_medio
 
 
-def _processar_amostras(amostras, rotulos, metodo, orcamento, idx_treino, idx_teste, semente):
+def _processar_amostras(
+    amostras, rotulos, metodo, orcamento, idx_treino, idx_teste, semente,
+    variancia_explicada=0.95,
+):
     compressor = COMPRESSORES[metodo]
 
-    vetores_treino, vetores_teste = [], []
+    vetores = [None] * len(amostras)
     energias_espectrais, fidelidades, tempos, flops = [], [], [], []
-    mantidos, t_originais = [], []
+    mantidos, t_originais, ks = [], [], []
 
-    idx_treino_set = set(idx_treino)
     for i, F in enumerate(amostras):
         t0 = time.perf_counter()
-        indices, F_podado, info = compressor(F, orcamento, semente=semente)
+        indices, F_podado, info = compressor(
+            F, orcamento, semente=semente, variancia_explicada=variancia_explicada,
+        )
         tempos.append(time.perf_counter() - t0)
 
-        v = pooling(F_podado)
-        if i in idx_treino_set:
-            vetores_treino.append(v)
-        else:
-            vetores_teste.append(v)
+        vetores[i] = pooling(F_podado)
 
         energias_espectrais.append(metricas.energia_espectral_preservada(info))
         fidelidades.append(metricas.fidelidade_reconstrucao(F, info.get("reconstrucao")))
         mantidos.append(len(indices))
         t_originais.append(F.shape[0])
+        if info.get("k") is not None:
+            ks.append(info["k"])
         if metodo in ("svd", "svd_energia"):
             flops.append(metricas.flops_svd_densa(F.shape[0], F.shape[1]))
         else:
             flops.append(0)
 
-    X_treino = np.vstack(vetores_treino)
-    X_teste = np.vstack(vetores_teste)
+    X_treino = np.vstack([vetores[i] for i in idx_treino])
+    X_teste = np.vstack([vetores[i] for i in idx_teste])
     y_treino = rotulos[idx_treino]
     y_teste = rotulos[idx_teste]
 
@@ -97,6 +98,7 @@ def _processar_amostras(amostras, rotulos, metodo, orcamento, idx_treino, idx_te
     r_k = _media_valida(fidelidades)
     t_medio = float(np.mean(t_originais))
     t_linha_medio = float(np.mean(mantidos))
+    k_medio = float(np.mean(ks)) if ks else float("nan")
 
     return {
         "acuracia_downstream": acc,
@@ -105,6 +107,7 @@ def _processar_amostras(amostras, rotulos, metodo, orcamento, idx_treino, idx_te
         "compressao": metricas.compressao(t_medio, t_linha_medio),
         "t_medio": t_medio,
         "t_linha_medio": t_linha_medio,
+        "k_medio": k_medio,
         "custo_tempo_operador": float(np.mean(tempos)),
         "custo_flops_densa": float(np.mean(flops)),
         "proxy_atencao": metricas.proxy_atencao(t_medio, t_linha_medio),
@@ -112,53 +115,86 @@ def _processar_amostras(amostras, rotulos, metodo, orcamento, idx_treino, idx_te
     }
 
 
-def rodar_grade(max_amostras=MAX_AMOSTRAS, max_tokens=MAX_TOKENS):
-    linhas = []
-    amostras, rotulos, textos, tempo_embed = carregar_dados(
-        max_amostras=max_amostras, max_tokens=max_tokens,
-    )
-    idx_treino, idx_teste = dividir_indices_estratificado(rotulos, semente=SEED)
-    for semente in SEMENTES:
-        for metodo in COMPRESSORES:
+def _combos_por_metodo(metodo):
+    if metodo == "full":
+        return [(EPSILONS[0], ORCAMENTOS[0])]
+    if metodo == "random":
+        return [(EPSILONS[0], rho) for rho in ORCAMENTOS]
+    return [(eps, rho) for eps in EPSILONS for rho in ORCAMENTOS]
+
+
+def expandir_grade(linhas):
+    """Replica full/random em todas as combinacoes (epsilon, orcamento) -> 36 linhas."""
+    por_chave = {
+        (l["metodo"], l["epsilon"], l["orcamento"]): l
+        for l in linhas
+    }
+    ref_full = por_chave[("full", EPSILONS[0], ORCAMENTOS[0])]
+    expandidas = []
+    for metodo in COMPRESSORES:
+        for epsilon in EPSILONS:
             for orcamento in ORCAMENTOS:
-                metricas_run = _processar_amostras(
-                    amostras, rotulos, metodo, orcamento,
-                    idx_treino, idx_teste, semente,
-                )
-                linhas.append({
-                    "metodo": metodo,
-                    "orcamento": orcamento,
-                    "semente": semente,
-                    "modo": "imdb",
-                    **metricas_run,
-                })
-    return linhas
+                if metodo == "full":
+                    linha = {**ref_full, "epsilon": epsilon, "orcamento": orcamento}
+                elif metodo == "random":
+                    ref = por_chave[("random", EPSILONS[0], orcamento)]
+                    linha = {**ref, "epsilon": epsilon}
+                else:
+                    linha = por_chave[(metodo, epsilon, orcamento)]
+                expandidas.append(linha)
+    return expandidas
+
+
+def rodar_grade(
+    max_amostras=MAX_AMOSTRAS,
+    max_tokens=MAX_TOKENS,
+    amostras=None,
+    rotulos=None,
+):
+    linhas = []
+    if amostras is None:
+        amostras, rotulos, _, _ = carregar_dados(
+            max_amostras=max_amostras, max_tokens=max_tokens,
+        )
+    idx_treino, idx_teste = dividir_indices_estratificado(rotulos, semente=SEED)
+    for metodo in COMPRESSORES:
+        for epsilon, orcamento in _combos_por_metodo(metodo):
+            metricas_run = _processar_amostras(
+                amostras, rotulos, metodo, orcamento,
+                idx_treino, idx_teste, semente=0,
+                variancia_explicada=epsilon,
+            )
+            linhas.append({
+                "metodo": metodo,
+                "epsilon": epsilon,
+                "orcamento": orcamento,
+                "semente": 0,
+                "modo": "imdb",
+                **metricas_run,
+            })
+    return expandir_grade(linhas)
 
 
 def _filtrar_para_agregacao(linhas):
-    """Metodos deterministicos: uma execucao por (metodo, rho); full uma vez."""
-    filtradas = []
-    for l in linhas:
-        if l["metodo"] == "full":
-            if l["orcamento"] != ORCAMENTOS[0] or l["semente"] != 0:
-                continue
-        elif l["metodo"] in METODOS_DETERMINISTICOS and l["semente"] != 0:
-            continue
-        filtradas.append(l)
-    return filtradas
+    return linhas
 
 
 def agregar(linhas):
     linhas = _filtrar_para_agregacao(linhas)
     agregado = {}
-    chaves = sorted({(l["metodo"], l["orcamento"]) for l in linhas})
-    for metodo, orcamento in chaves:
+    chaves = sorted({
+        (l["metodo"], l["orcamento"], l["epsilon"]) for l in linhas
+    })
+    for metodo, orcamento, epsilon in chaves:
         grupo = [
             l for l in linhas
-            if l["metodo"] == metodo and l["orcamento"] == orcamento
+            if l["metodo"] == metodo
+            and l["orcamento"] == orcamento
+            and l["epsilon"] == epsilon
         ]
         accs = [g["acuracia_downstream"] for g in grupo]
         agregado.setdefault(metodo, []).append({
+            "epsilon": epsilon,
             "orcamento": orcamento,
             "compressao": float(np.mean([g["compressao"] for g in grupo])),
             "acuracia_media": float(np.mean(accs)),
@@ -170,6 +206,9 @@ def agregar(linhas):
                 g["fidelidade_reconstrucao"] for g in grupo
                 if not np.isnan(g["fidelidade_reconstrucao"])
             ])) if any(not np.isnan(g["fidelidade_reconstrucao"]) for g in grupo) else float("nan"),
+            "k_medio": float(np.mean([
+                g["k_medio"] for g in grupo if not np.isnan(g["k_medio"])
+            ])) if any(not np.isnan(g["k_medio"]) for g in grupo) else float("nan"),
             "t_medio": float(np.mean([g["t_medio"] for g in grupo])),
             "t_linha_medio": float(np.mean([g["t_linha_medio"] for g in grupo])),
             "custo_tempo_media": float(np.mean([g["custo_tempo_operador"] for g in grupo])),
@@ -211,9 +250,15 @@ def main():
     os.makedirs(PASTA_RESULTADOS, exist_ok=True)
     t0_total = time.perf_counter()
 
+    amostras, rotulos, _, _ = carregar_dados(
+        max_amostras=args.max_amostras,
+        max_tokens=args.max_tokens,
+    )
     linhas = rodar_grade(
         max_amostras=args.max_amostras,
         max_tokens=args.max_tokens,
+        amostras=amostras,
+        rotulos=rotulos,
     )
     caminho_csv = os.path.join(PASTA_RESULTADOS, "resultados_imdb.csv")
     salvar_csv(linhas, caminho_csv)
@@ -221,7 +266,11 @@ def main():
 
     agregado = agregar(linhas)
     visualizacao.salvar_grafico_tradeoff(
-        agregado, os.path.join(PASTA_RESULTADOS, "tradeoff_acerto_compressao.png")
+        agregado, os.path.join(PASTA_RESULTADOS, "tradeoff_acerto_compressao.png"),
+    )
+    visualizacao.salvar_grafico_epsilon_k(
+        amostras, EPSILONS,
+        os.path.join(PASTA_RESULTADOS, "epsilon_k_cortes.png"),
     )
 
     tempo_total = time.perf_counter() - t0_total
@@ -235,14 +284,15 @@ def main():
         scores = llm_sanidade.executar_sanidade(textos, usar_gpt2=True, n_amostras=5)
         print("Sanidade gpt2 (5 amostras):", scores)
 
-    print("Resumo (media de acuracia por metodo e orcamento):")
+    print("Resumo (media de acuracia por metodo, epsilon e orcamento):")
     for metodo, pontos in sorted(agregado.items()):
         print("  [{}]".format(metodo))
-        for p in sorted(pontos, key=lambda x: x["compressao"]):
+        for p in sorted(pontos, key=lambda x: (x["epsilon"], x["compressao"])):
             print(
-                "    rho={:.3f} | C={:.3f} | acc={:.3f}+/-{:.3f}".format(
-                    p["orcamento"], p["compressao"], p["acuracia_media"],
+                "    eps={:.2f} rho={:.3f} | C={:.3f} | acc={:.3f}+/-{:.3f} | k={}".format(
+                    p["epsilon"], p["orcamento"], p["compressao"], p["acuracia_media"],
                     p["acuracia_desvio"],
+                    f"{p['k_medio']:.1f}" if not np.isnan(p["k_medio"]) else "nan",
                 )
             )
 

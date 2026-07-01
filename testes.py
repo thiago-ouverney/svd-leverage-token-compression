@@ -95,7 +95,7 @@ def teste_norma_zero():
 
 def teste_indices_ordenados():
     F = _matriz_teste(n_tokens=25, dim=10, semente=8)
-    for metodo in ("random", "norm", "first", "svd", "svd_energia"):
+    for metodo in ("random", "svd", "svd_energia"):
         fn = cp.COMPRESSORES[metodo]
         indices, _, _ = fn(F, orcamento=0.4, semente=3)
         assert np.all(indices[:-1] <= indices[1:])
@@ -108,6 +108,20 @@ def teste_split_estratificado():
     for c in (0, 1, 2):
         assert sum(rotulos[tr] == c) == 2
         assert sum(rotulos[te] == c) == 2
+
+
+def teste_epsilon_afeta_k():
+    rng = np.random.default_rng(11)
+    n_sv = 12
+    U, _ = np.linalg.qr(rng.standard_normal((40, n_sv)))
+    V, _ = np.linalg.qr(rng.standard_normal((20, n_sv)))
+    singular_values = np.geomspace(10.0, 0.3, n_sv)
+    F = U @ np.diag(singular_values) @ V.T
+    _, _, info_baixo = cp.comprimir_svd(F, orcamento=0.5, variancia_explicada=0.90)
+    _, _, info_alto = cp.comprimir_svd(F, orcamento=0.5, variancia_explicada=0.99)
+    assert info_baixo["k"] < info_alto["k"]
+    assert info_baixo["energia_explicada"] >= 0.90
+    assert info_alto["energia_explicada"] >= 0.99
 
 
 def teste_ridge_classificador():
