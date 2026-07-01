@@ -1,0 +1,47 @@
+% =============================================================================
+% ARQUIVO PRINCIPAL — no Overleaf: Main document = main.tex (NAO compile preamble.tex)
+% =============================================================================
+
+\PassOptionsToPackage{dvipsnames,svgnames}{xcolor}
+\documentclass[12pt]{article}
+
+\input{preamble}
+
+\begin{document}
+
+\title{
+Trabalho de Álgebra Linear Computacional \hspace{2.0ex} 26.1\\
+Compressão de tokens em embeddings via SVD e leverage scores
+}
+
+\author{
+    Nome Sobrenome\inst{1}
+}
+
+\address{
+    Instituto de Computação -- Universidade Federal Fluminense (UFF)\\
+    Niterói -- RJ -- Brasil -- 24210-346
+    \email{pessoa@id.uff.br}
+}
+\maketitle
+
+\begin{abstract}
+Modelos de linguagem de grande porte (LLMs) processam sequências longas de tokens, o que eleva custo de memória e tempo de inferência. Neste artigo, estudamos compressão de embeddings textuais via \textbf{SVD truncada com leverage scores}, inspirada no SVD-Prune: dada $F \in \mathbb{R}^{T \times D}$ (hidden states token-level), selecionamos $T' \ll T$ linhas no subespaço dominante. Desenvolvemos fundamentação (Gram--Schmidt, espectral, $F^\top F$ PSD, leverage clássico e ponderado), implementamos pipeline reprodutível com baseline \texttt{random} e comparamos operadores SVD em reviews IMDb ($\approx$400 amostras, $\bar{T}\approx 209$ tokens) em grade $\varepsilon \times \rho$ ($3 \times 3$). Medimos perda de informação por dois proxies: compressão $C$ e energia espectral $E_k^{\mathrm{energia}}$ (algébrico), e acurácia de sentimento com classificador ridge sobre embeddings podados (supervisionado). A SVD beneficia-se de $\varepsilon$ mais alto e supera o teto em compressão moderada, mas \texttt{svd\_energia} degrada em compressão agressiva.
+\end{abstract}
+
+\noindent\textit{\textbf{Palavras-chave}}: SVD, leverage scores, compressão de tokens, embeddings, álgebra linear computacional.
+
+\input{sections/intro}
+\input{sections/fundamentacao}
+\input{sections/metodologia}
+\input{sections/resultados}
+\input{sections/conclusao}
+
+\section*{Código}\label{sec:codigo}
+O código que acompanha este relatório está disponível em:
+\url{https://github.com/thiago-ouverney/svd-leverage-token-compression}.
+Execução: \texttt{python experimento.py --max-amostras 400 --max-tokens 256}.
+Saídas consumidas pelo artigo: \texttt{resultados/resultados.csv} e \texttt{resultados/tradeoff\_acerto\_compressao.png}.
+
+\bibliography{refs}
+\end{document}

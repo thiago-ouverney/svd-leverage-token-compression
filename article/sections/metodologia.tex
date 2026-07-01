@@ -1,0 +1,174 @@
+\section{Metodologia}\label{sec:metodologia}
+
+Materializamos o operador de poda inspirado no SVD-Prune em um pipeline reprodutível sobre reviews IMDb. Comparamos operadores (\texttt{svd}, \texttt{svd\_energia} e baselines) sob o mesmo par $(\varepsilon, \rho)$, reportando acurácia downstream, compressão $C$ e, para métodos SVD, energia espectral $E_k^{\mathrm{energia}}$.
+
+Com os dados disponíveis, buscamos responder:
+\begin{enumerate}
+    \item se leverage score preserva acurácia competitiva frente a heurísticas locais;
+    \item se \texttt{svd\_energia} difere de \texttt{svd} ao mesmo $(\varepsilon, \rho)$;
+    \item se $E_k^{\mathrm{energia}}$ e $\bar{k}$ variam com $\varepsilon$ e permanecem invariantes a $\rho$ (dentro de cada $\varepsilon$).
+\end{enumerate}
+
+\subsection{Corpus IMDb}\label{sec:corpus}
+
+Utilizamos um subconjunto balanceado de \textbf{400 reviews} do IMDb (200 negativas, 200 positivas), com split estratificado 70/30 entre treino e teste (semente 42). A \textbf{unidade experimental} é cada review: um texto bruto que, após o encoder, vira uma matriz $F^{(i)} \in \mathbb{R}^{T_i \times D}$; não há uma matriz global única do corpus, e sim 400 matrizes, uma por documento. Em média, $\bar{T} \approx 209$ \textbf{linhas} (subtokens de conteúdo; ver Seção~\ref{sec:construcao-f}) e $D = 384$ \textbf{colunas} (dimensão do embedding; Tabela~\ref{tab:modos}).
+
+\subsection{Pipeline experimental}\label{sec:pipeline}
+
+O fluxo segue quatro etapas:
+
+\begin{enumerate}
+    \item \textbf{Entrada textual}: review bruta do IMDb.
+    \item \textbf{Tokenização e embedding}: construção de $F \in \mathbb{R}^{T \times D}$ (Seção~\ref{sec:construcao-f}).
+    \item \textbf{Compressão}: operador de poda (Algoritmo~\ref{alg:svd-prune} ou baseline), produzindo $F[S,:]$.
+    \item \textbf{Avaliação em paralelo} (reportada separadamente):
+    \begin{itemize}
+        \item \textbf{(A) Métricas algébricas}: compressão $C$; para SVD, $E_k^{\mathrm{energia}}$ sobre $F_k$.
+        \item \textbf{(B) Agregação e classificação} (Seção~\ref{sec:protocolo-clf}): de $F[S,:]$ a acurácia de sentimento.
+    \end{itemize}
+\end{enumerate}
+
+Treino e teste passam pelo mesmo operador e $\rho$.
+
+\subsection{Construção da matriz de features}\label{sec:construcao-f}
+
+Um \textbf{subtoken} é a unidade mínima produzida pelo tokenizador WordPiece (p.ex., ``running'' pode virar ``run'' + ``##ning''); cada subtoken correspondente a texto da review vira \textbf{uma linha} de $F$. O operador SVD-Prune poda linhas dessa matriz; precisamos, portanto, de representações por subtoken, e não de um único vetor por documento.
+
+Para cada review, o fluxo é: texto $\to$ tokenização WordPiece $\to$ encoder $\to$ saída \texttt{last\_hidden\_state} $\to$ remoção de tokens especiais e padding $\to$ matriz
+$$
+F \in \mathbb{R}^{T \times D}, \qquad D = 384.
+$$
+Interpretamos $F$ como uma tabela de features: $T$ \textbf{linhas} (observações sequenciais, uma por subtoken de conteúdo) e $D$ \textbf{colunas} (features contínuas do embedding). Cada \textbf{hidden state token-level} é o vetor de dimensão $D$ que o encoder associa a um subtoken \emph{já contextualizado} pela sequência; a linha $i$ de $F$ empilha $\mathbf{f}_i^\top$.
+
+\paragraph{Escolha do encoder.}
+Usamos \texttt{all-MiniLM-L6-v2} via \texttt{AutoModel} e \texttt{last\_hidden\_state}, e \textbf{não} o pooling de sentença do Sentence-Transformers (\texttt{encode()}), que colapsaria a sequência em $T=1$ e impediria poda no eixo de linhas. Trata-se de um encoder compacto (seis camadas Transformer, $D=384$), reprodutível via HuggingFace e executável em CPU; mantemos-no \textbf{fixo e sem fine-tuning} para isolar o efeito dos operadores de poda.
+
+O limite \texttt{max\_tokens}$=256$ restringe o \textbf{comprimento da sequência} (no máximo 256 posições tokenizadas por review), não a dimensionalidade das features: após remover \texttt{[CLS]}, \texttt{[SEP]} e \textbf{padding} (preenchimento artificial de \emph{batch}), obtemos $T \leq 256$ linhas, cada uma com $D=384$ features numéricas ($\bar{T}\approx 209$ neste corpus).
+
+\begin{table}[ht]
+    \centering
+    \caption{Configuração experimental (IMDb).}
+    \label{tab:modos}
+    \begin{tabular}{llcc}
+        \hline
+        Item & Valor & $T$ (linhas) & $D$ (colunas) \\
+        \hline
+        Corpus & 400 reviews (200/classe) & 1 matriz $F$ por review & --- \\
+        Encoder & \texttt{all-MiniLM-L6-v2} (token-level) & variável & 384 \\
+        Truncamento & \texttt{max\_tokens} $= 256$ & $\bar{T} \approx 209$ & --- \\
+        Tarefa & sentimento binário (neg/pos) & --- & --- \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Baselines e operadores SVD}\label{sec:baselines}
+
+Dado orçamento $\rho \in (0,1]$ (fração de linhas mantidas), fixamos
+$$
+T' = \max\!\left(1, \lfloor \rho T \rfloor\right).
+$$
+Com $\bar{T}\approx 209$, $\rho=0{,}5$ implica $\bar{T'}\approx 105$ linhas preservadas. Cada operador seleciona um conjunto $S$ de $T'$ linhas de $F$; a interpretação de $T'$ e a agregação downstream estão na Seção~\ref{sec:protocolo-clf}.
+
+Sob o mesmo $\rho$, avaliamos quatro operadores:
+
+\begin{itemize}
+    \item \textbf{full}: mantém todos os tokens (teto de referência).
+    \item \textbf{random}: seleciona $T'$ tokens uniformemente ao acaso (semente fixa 0).
+    \item \textbf{svd}: leverage clássico $s_i^{\mathrm{SVD}} = \ell_i/k$ (Seção~\ref{sec:leverage}).
+    \item \textbf{svd\_energia}: leverage ponderado $\ell_i^{(\Sigma)} = \|U_k[i,:]\Sigma_k\|_2^2$.
+\end{itemize}
+
+Comparamos \texttt{svd} e \texttt{svd\_energia}: o primeiro usa leverage clássico, medindo participação no subespaço dominante sem ponderar modos; o segundo pondera pela energia dos valores singulares, privilegiando componentes de maior variância.
+
+Após selecionar os $T'$ maiores scores, os índices são \textbf{reordenados pela posição original} antes de $F[S,:]$. Com pooling médio (Seção~\ref{sec:protocolo-clf}), a ordem não altera a representação final, mas mantém compatibilidade com uso sequencial em Transformers.
+
+\subsection{Operador SVD-Prune}\label{sec:operador}
+
+O Algoritmo~\ref{alg:svd-prune} resume \texttt{compressores.py}. A implementação usa SVD densa (\texttt{numpy.linalg.svd}); o parâmetro $k$ é escolhido \emph{após} a decomposição completa.
+
+\begin{algorithm}[ht]
+    \caption{SVD truncada com leverage scores (\texttt{comprimir\_svd})}
+    \label{alg:svd-prune}
+    \begin{algorithmic}[1]
+        \State Calcular $F = U \Sigma V^\top$ via \texttt{numpy.linalg.svd} (\texttt{full\_matrices=False})
+        \State Fixar $k$ como o menor inteiro tal que $\dfrac{\sum_{j=1}^{k}\sigma_j^2}{\sum_{j=1}^{r}\sigma_j^2} \geq \varepsilon$
+        \State Calcular $s_i^{\mathrm{SVD}} = \dfrac{1}{k}\sum_{j=1}^{k} U_{ij}^2$ para cada token $i$
+        \State $T' \gets \max(1, \lfloor \rho T \rfloor)$; $S \gets$ índices dos $T'$ tokens de maior score; reordenar $S$ por posição
+        \State Retornar $S$, $F[S,:]$ e $\hat{F} = U_k \Sigma_k V_k^\top$
+    \end{algorithmic}
+\end{algorithm}
+
+\subsection{Avaliação downstream}\label{sec:protocolo-clf}
+
+Após a poda, cada review fica representada por $F[S,:] \in \mathbb{R}^{T' \times D}$: ainda há uma linha por subtoken mantido. O classificador ridge, porém, espera \textbf{um vetor de features por amostra} (como uma linha da matriz de design $X \in \mathbb{R}^{N \times D}$). Por isso, agregamos as $T'$ linhas restantes por \textbf{pooling médio}\footnote{Pooling médio: $\bar{\mathbf{f}} = \frac{1}{T'}\sum_{i \in S} \mathbf{f}_i$; resume a sequência podada em um único ponto de $\mathbb{R}^D$.} antes da classificação.
+
+Fixamos $T' = \max(1, \lfloor \rho T \rfloor)$ (Seção~\ref{sec:baselines}) porque, se $T'=0$, $F[S,:]$ ficaria vazia e o pooling não teria linhas para agregar; o $\max(1,\cdot)$ garante ao menos um subtoken antes da agregação. Em seguida, aplicamos \textbf{normalização $L_2$} a $\bar{\mathbf{f}}$, dividindo-o por $\|\bar{\mathbf{f}}\|_2$, para que todos os métodos fiquem na mesma escala antes do ridge\footnote{Norma $L_2$: $\|\mathbf{v}\|_2 = \sqrt{\sum_j v_j^2}$; após normalização, $\|\mathbf{v}\|_2=1$.}. Treinamos um classificador \textbf{ridge} binário ($\lambda = 1$) sobre o corpus da Seção~\ref{sec:corpus}.
+
+Treino e teste passam pelo \textbf{mesmo operador} e $\rho$ antes da agregação e da classificação; \texttt{full} serve de teto. Comparamos métodos à mesma $\rho$: menor queda de acurácia em relação a \texttt{full} indica menor perda no proxy supervisionado (Seção~\ref{sec:intro}).
+
+\subsection{Hiperparâmetros e grid experimental}\label{sec:protocolo}
+
+\begin{table}[ht]
+    \centering
+    \caption{Hiperparâmetros do experimento.}
+    \label{tab:hiper}
+    \begin{tabular}{lll}
+        \hline
+        Parâmetro & Valor & Descrição \\
+        \hline
+        $\varepsilon$ & $0{,}90$; $0{,}95$; $0{,}99$ & Limiar para escolha de $k$ \\
+        $\rho$ & $0{,}50$; $0{,}25$; $0{,}125$ & Fração de tokens mantidos \\
+        Métodos & full, random, svd, svd\_energia & Operadores comparados \\
+        Dataset & IMDb ($\approx$400) & 200/classe, split estratificado \\
+        Tokenização & \texttt{max\_tokens} $= 256$ & Truncamento MiniLM \\
+        Classificador & Ridge binário ($\lambda=1$) & treino/teste comprimidos \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Executamos uma \textbf{simulação em grade} variando sistematicamente método, $\varepsilon$ e $\rho$, cobrindo todas as combinações da Tabela~\ref{tab:hiper} ($3 \times 3 \times 4 = 36$ configurações; 22 execuções efetivas de operador, pois \texttt{full} e \texttt{random} não dependem de $\varepsilon$). Os métodos \texttt{svd} e \texttt{svd\_energia} são sempre comparados no mesmo par $(\varepsilon, \rho)$. Na consolidação, embeddings são computados \textbf{uma única vez}; \texttt{full} é referência única replicada em todos os pares $(\varepsilon, \rho)$.
+
+Código: \url{https://github.com/thiago-ouverney/svd-leverage-token-compression}; execução: \texttt{python experimento.py --max-amostras 400}.
+
+\subsection{Métricas}\label{sec:metricas}
+
+Reportamos os dois proxies da Seção~\ref{sec:intro}: \textbf{(A)} algébrico ($C$, $E_k^{\mathrm{energia}}$) e \textbf{(B)} supervisionado (acurácia downstream).
+
+\begin{description}
+    \item[Compressão]
+    \begin{equation*}
+        C = 1 - \frac{T'}{T}.
+    \end{equation*}
+    Quantifica a redução de linhas após a poda. Reportamos também $\bar{T}$ e $\bar{T'}$, pois $T$ varia entre amostras.
+
+    \item[Acurácia downstream]
+    Acurácia do classificador ridge (Seção~\ref{sec:protocolo-clf}) sobre vetor pós-pooling e normalização $L_2$, com treino e teste comprimidos pelo mesmo operador. Mede o efeito prático da poda no sinal supervisionado de sentimento.
+
+    \item[Energia espectral preservada]
+    \begin{equation*}
+        E_k^{\mathrm{energia}} =
+        \frac{\sum_{j=1}^{k}\sigma_j^2}{\sum_{j=1}^{r}\sigma_j^2}.
+    \end{equation*}
+    Indica quanto da variância espectral de $F$ o subespaço truncado captura. Usada para escolher $k$ (via $\varepsilon$) e reportada para métodos SVD; baselines não-SVD registram $\mathrm{NaN}$.
+\end{description}
+
+\begin{table}[ht]
+    \centering
+    \caption{Variáveis de saída por execução.}
+    \label{tab:saidas}
+    \begin{tabular}{ll}
+        \hline
+        Saída & Significado \\
+        \hline
+        $S$ & índices mantidos (ordenados por posição) \\
+        $F[S,:]$ & matriz podada \\
+        $\hat{F}$ & reconstrução de posto $k$ (só SVD) \\
+        $k$ & dimensão do subespaço dominante \\
+        $C$, $\bar{T}$, $\bar{T'}$ & compressão e comprimentos médios \\
+        acc & acurácia downstream \\
+        $E_k^{\mathrm{energia}}$ & energia espectral preservada \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Reportamos acurácia por $(\mathrm{método}, \varepsilon, \rho)$ conforme a consolidação descrita na Seção~\ref{sec:protocolo}.

@@ -1,0 +1,103 @@
+\section{Fundamentação teórica}\label{sec:fundamentacao}
+
+\subsection{Sequência, features e problema de poda}\label{sec:contexto-f}
+
+Em modelos baseados em Transformers, o custo de inferência cresce com o comprimento da sequência processada --- em atenção densa, de forma superlinear em $T$ \cite{chen2024fastv}. Técnicas de \emph{pruning} procuram reduzir o número de unidades de contexto antes ou durante a inferência. Formalmente, representamos essas unidades por uma matriz de \emph{features} $F$, cujas linhas são candidatas à poda.
+
+Consideremos uma sequência de $T$ vetores $\mathbf{f}_1, \ldots, \mathbf{f}_T \in \mathbb{R}^D$, empilhados como linhas de
+$$
+F = \begin{bmatrix} \mathbf{f}_1^\top \\ \mathbf{f}_2^\top \\ \vdots \\ \mathbf{f}_T^\top \end{bmatrix} \in \mathbb{R}^{T \times D}.
+$$
+Cada linha de $F$ representa uma \textbf{unidade de contexto já vetorizada} --- por exemplo, um \emph{vision token} em VLMs \cite{apedo2026svdprune}, um token textual em camada intermediária de um Transformer, ou um \emph{chunk} (trecho de documento, bloco de código) representado por embedding. A SVD \textbf{não} opera sobre texto bruto nem sobre identificadores discretos do tokenizer; opera sobre representações vetoriais contínuas. Neste relatório, $F$ denota genericamente essa matriz de features; a metodologia (Seção~\ref{sec:metodologia}) especifica embeddings de tokens textuais via \texttt{all-MiniLM-L6-v2} e matrizes sintéticas de posto controlado.
+
+\paragraph{Objetivo da poda.}
+Dado orçamento $T' \leq T$, buscamos $S \subset \{1, \ldots, T\}$, $|S| = T'$, e a submatriz $F[S,:] \in \mathbb{R}^{T' \times D}$. A compressão nos experimentos é
+$$
+C = 1 - \frac{T'}{T}.
+$$
+O objetivo final é reduzir o eixo de sequência ($T \to T'$), preservando a dimensão $D$ das linhas mantidas. Internamente, a SVD projeta $F$ em um subespaço de dimensão $k \ll \min(T,D)$ para estimar importância estrutural das linhas.
+
+O problema central é escolher $S$ de forma que $F[S,:]$ preserve informação útil para tarefas downstream --- \textbf{sem depender exclusivamente} de heurísticas locais, posicionais ou específicas de uma camada de atenção \cite{apedo2026svdprune}. Abordagens semânticas em agentes (p.ex.\ FastContext \cite{zhang2026fastcontext}) selecionam trechos por relevància à tarefa; aqui estudamos um critério \textbf{algébrico} sobre $F$, complementar à seleção semântica.
+
+\paragraph{Adaptação conceitual.}
+Embora a formulação seja inspirada em \emph{token pruning} interno (SVD-Prune em VLMs), a mesma estrutura matricial pode ser reinterpretada em nível de \emph{chunks} ou arquivos, desde que cada unidade seja um vetor. Não reproduzimos um VLM nem um agente de codificação completo; avaliamos o operador em embeddings token-level de reviews IMDb (sequências mais longas que notícias curtas) para aproximar a motivação de compressão de contexto redundante.
+
+\subsection{Posto efetivo e decaimento espectral}
+
+Em sequências redundantes, várias linhas de $F$ são combinações lineares (ou quase) de poucas direções dominantes. Em dados reais, \textbf{não} se espera necessariamente posto algébrico baixo: $\mathrm{rank}(F)$ pode ser $\min(T,D)$, mas a \textbf{energia espectral}
+$$
+\|F\|_F^2 = \sum_{j=1}^{r} \sigma_j^2
+$$
+concentra-se nos primeiros valores singulares --- cenário de \textbf{posto efetivo} $r_{\mathrm{eff}} \ll \min(T,D)$ sob critério numérico \cite{alcposto,alc21svd}. Modos com $\sigma_j$ pequenos contribuem pouco à reconstrução; isso motiva aproximação de posto baixo e seleção de linhas no subespaço dominante.
+
+\subsection{Bases ortonormais e decomposição espectral}
+
+O ponto relevante de \textbf{Gram--Schmidt} \cite{alc11base} não é o algoritmo em si, mas substituir um conjunto redundante por uma \textbf{base ortonormal} do mesmo subespaço: dado $\{v_1,\ldots,v_k\}$ linearmente independentes, obtém-se $\{q_1,\ldots,q_k\}$ com $q_i^\top q_j = \delta_{ij}$ e $\mathrm{span}\{q_1,\ldots,q_k\} = \mathrm{span}\{v_1,\ldots,v_k\}$ \cite{alc04produto}.
+
+Para matrizes \textbf{simétricas} $A \in \mathbb{R}^{n \times n}$, o teorema espectral \cite{alc19espectral} garante $A = Q \Lambda Q^\top$, com $Q$ ortogonal e $\Lambda = \mathrm{diag}(\lambda_1,\ldots,\lambda_n)$, $\lambda_1 \geq \cdots \geq \lambda_n$. Se $A$ é \textbf{PSD}, todos os $\lambda_j \geq 0$; autovalores nulos indicam direções no \textbf{núcleo}. Descartar autovalores pequenos é o análogo espectral de reduzir dimensionalidade.
+
+\subsection{De $F$ retangular a $F^\top F$ e $F F^\top$}
+
+A matriz $F$ é em geral não quadrada e não simétrica. As matrizes Gram
+$$
+G_T = F F^\top \in \mathbb{R}^{T \times T}, \qquad G_D = F^\top F \in \mathbb{R}^{D \times D}
+$$
+são simétricas e PSD, pois $x^\top G_D x = \|F x\|_2^2 \geq 0$. Quando $\mathrm{rank}(F) = r$, $G_T$ e $G_D$ possuem $T-r$ e $D-r$ autovalores \textbf{nulos}, ligando posto, núcleo e redundância \cite{alcposto,alc19espectral}.
+
+\subsection{Valores singulares e SVD}
+
+A ponte entre $F$ retangular e a teoria espectral é a \textbf{SVD} \cite{alc21svd}:
+$$
+F = U \Sigma V^\top,
+$$
+com $U \in \mathbb{R}^{T \times r}$, $\Sigma = \mathrm{diag}(\sigma_1,\ldots,\sigma_r)$, $V \in \mathbb{R}^{D \times r}$, $r = \mathrm{rank}(F)$ e $\sigma_1 \geq \cdots \geq \sigma_r > 0$. Os autovalores \textbf{não nulos} de $F^\top F$ e $F F^\top$ coincidem e satisfazem $\sigma_j^2 = \lambda_j(F^\top F) = \lambda_j(F F^\top)$ para $j=1,\ldots,r$; as demais direções correspondem a autovalores nulos. Colunas de $U$ são autovetores de $F F^\top$; colunas de $V$ são autovetores de $F^\top F$.
+
+\paragraph{Interpretação de $U$, $\Sigma$ e $V^\top$.}
+\begin{itemize}
+    \item \textbf{$U$}: modos ortonormais ao longo do eixo das unidades de contexto; $U[i,:]$ descreve como a linha $i$ participa de cada modo.
+    \item \textbf{$\Sigma$}: ganhos $\sigma_j$; $\sigma_j \to 0$ indica modo quase nulo.
+    \item \textbf{$V^\top$}: padrões na dimensão $D$; cada termo de posto um é $U[:,j]\,\sigma_j\, V[:,j]^\top$.
+\end{itemize}
+
+\subsection{Redução de posto: reconstrução matricial}\label{sec:truncamento}
+
+A aproximação de posto $k < r$ por truncamento espectral é
+$$
+F_k = U_k \Sigma_k V_k^\top = \sum_{j=1}^{k} \sigma_j \, U[:,j] \, V[:,j]^\top.
+$$
+Pelo teorema de Eckart--Young \cite{alc21svd}, $F_k$ minimiza $\|F - F_k\|_F$ entre matrizes de posto $\leq k$. Fixado limiar $\varepsilon \in (0,1)$, escolhe-se o menor $k$ tal que
+$$
+\frac{\sum_{j=1}^{k} \sigma_j^2}{\sum_{j=1}^{r} \sigma_j^2} \geq \varepsilon.
+$$
+Quando $F$ é centralizada por coluna, essa razão coincide com \textbf{variância explicada}; como aplicamos SVD diretamente à matriz de features, usamos o termo \textbf{energia espectral preservada}. A reconstrução $\hat{F} = F_k$ mede fidelidade algébrica (norma de Frobenius); $\varepsilon$ e detalhes numéricos estão na Seção~\ref{sec:metodologia}.
+
+\paragraph{Projeção no subespaço dominante.}
+Projetando $F$ na base singular direita dominante,
+$$
+Z_k = F V_k = U_k \Sigma_k.
+$$
+A linha $Z_k[i,:]$ são as coordenadas da unidade $i$ no subespaço de dimensão $k$; $\|Z_k[i,:]\|_2^2 = \sum_{j=1}^{k} \sigma_j^2 U_{ij}^2$ mede sua contribuição energética aos modos preservados por $F_k$. Essa observação liga truncamento espectral a critérios de importância por linha.
+
+\paragraph{Limite teórico.}
+Eckart--Young garante otimalidade de $F_k$ como aproximação de posto baixo em $\|\cdot\|_F$; \textbf{não} garante, por si só, que linhas selecionadas maximizem acurácia ou qualidade semântica downstream. Reconstrução matricial e desempenho em tarefa são objetivos distintos --- distinção central para interpretar os experimentos.
+
+\subsection{Seleção de linhas: leverage scores (SVD-Prune)}\label{sec:leverage}
+
+Comprimir unidades de contexto exige selecionar \textbf{linhas} de $F$, não apenas truncar modos. Inspirado no SVD-Prune \cite{apedo2026svdprune}, após fixar $k$ definimos dois scores algébricos:
+
+\paragraph{Leverage clássico.}
+$$
+\ell_i = \|U_k[i,:]\|_2^2 = \sum_{j=1}^{k} U_{ij}^2.
+$$
+
+\paragraph{Leverage ponderado pela energia dos modos.}
+$$
+\ell_i^{(\Sigma)} = \|U_k[i,:]\Sigma_k\|_2^2 = \sum_{j=1}^{k} \sigma_j^2 U_{ij}^2 = \|Z_k[i,:]\|_2^2.
+$$
+
+Ambos medem participação da linha $i$ no subespaço dominante; $\ell_i^{(\Sigma)}$ enfatiza modos de maior $\sigma_j$. Para ranqueamento, $\ell_i$ e a forma normalizada $s_i^{\mathrm{SVD}} = \ell_i / k$ são equivalentes (escala comum a todas as linhas). \textbf{Nos experimentos avaliamos ambas as variantes}: operador \texttt{svd} ($\ell_i/k$) e operador \texttt{svd\_energia} ($\ell_i^{(\Sigma)}$), comparando-os a baselines na metodologia (Seção~\ref{sec:baselines}).
+
+Intuição: unidades com alto leverage são representativas da estrutura global de $F$, em contraste com scores de atenção locais. Dado orçamento $\rho \in (0,1]$, mantemos os $T' = \lfloor \rho T \rfloor$ índices de maior $s_i^{\mathrm{SVD}}$, obtendo $F[S,:]$. Trata-se de critério \textbf{não supervisionado} de importância estrutural; a qualidade final depende da tarefa e é avaliada empiricamente (Seção~\ref{sec:resultados}).
+
+\paragraph{Síntese.}
+A SVD separa modos dominantes de residuais; o truncamento por energia preservada fixa $k$; os leverage scores definem $S$. A Seção~\ref{sec:metodologia} materializa esse operador em texto $\to$ embedding $\to$ poda $\to$ métricas.

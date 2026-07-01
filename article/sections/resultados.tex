@@ -1,0 +1,102 @@
+\section{Resultados}\label{sec:resultados}
+
+\subsection{Configuração}
+
+Executamos a grade completa de hiperparâmetros (Seção~\ref{sec:protocolo}) sobre $\approx$400 reviews IMDb balanceadas (200/classe), split estratificado 70/30, truncamento em 256 tokens, $\sim$156\,s em CPU com embeddings cacheados uma única vez.\footnote{Código e dados reprodutíveis: \url{https://github.com/thiago-ouverney/svd-leverage-token-compression}.} Cada combinação $(\mathrm{método}, \varepsilon, \rho)$ produz um valor único de acurácia. Classificador: Ridge binário ($\lambda=1$) sobre pooling médio + normalização $L_2$. A Figura~\ref{fig:epsilon-k} mostra os cortes $k(\varepsilon)$ na curva de energia espectral; a Figura~\ref{fig:tradeoff} resume o trade-off acurácia $\times$ compressão em três painéis (um por $\varepsilon$).
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.92\linewidth]{figures/epsilon_k_cortes.png}
+    \caption{Energia espectral acumulada de uma review representativa e pontos de corte $k(\varepsilon)$ para $\varepsilon \in \{0{,}90, 0{,}95, 0{,}99\}$. Anotações incluem $\bar{k}$ médio no corpus.}
+    \label{fig:epsilon-k}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/tradeoff_acerto_compressao.png}
+    \caption{Acurácia downstream $\times$ compressão (IMDb), facetada por $\varepsilon$. Cada painel compara os quatro métodos nos três níveis de $\rho$.}
+    \label{fig:tradeoff}
+\end{figure}
+
+\subsection{IMDb (sentimento binário)}
+
+Com $\bar{T}\approx 209$ tokens após remoção de especiais e $\bar{T'}\approx 26$ para $\rho=0{,}125$, a poda opera sobre sequências substancialmente mais longas que em bases de notícias curtas. A acurácia downstream situa-se em $\approx 0{,}68$--$0{,}79$; interpretamos como avaliação de um \textbf{operador algébrico em proxy controlado}. As Tabelas~\ref{tab:imdb-e90}--\ref{tab:imdb-e99} comparam métodos por $\varepsilon$; a Tabela~\ref{tab:metricas-eps} resume $\bar{k}$ e $E_k^{\mathrm{energia}}$.
+
+Destaques: \texttt{full} ($0{,}750$) serve de teto em todos os painéis. Com $\varepsilon=0{,}99$ e $\rho=0{,}5$, \texttt{svd} atinge $0{,}792$ (melhor resultado global); com $\varepsilon=0{,}90$, o mesmo orçamento cai para $0{,}750$. \texttt{svd\_energia} permanece abaixo de \texttt{svd} na maioria dos pares, especialmente em $\rho=0{,}125$ ($0{,}675$ vs.\ $0{,}683$--$0{,}725$ conforme $\varepsilon$). \texttt{random} é forte em $\rho=0{,}25$ ($0{,}775$), independente de $\varepsilon$.
+
+Para SVD, $E_k^{\mathrm{energia}}$ e $\bar{k}$ variam com $\varepsilon$ (Tabela~\ref{tab:metricas-eps}) e permanecem invariantes a $\rho$ dentro de cada $\varepsilon$: confirma que essas métricas medem o subespaço truncado $F_k$, e não a seleção $S$.
+
+\begin{table}[ht]
+    \centering
+    \caption{Acurácia downstream por método e $\rho$ com $\varepsilon=0{,}90$.}
+    \label{tab:imdb-e90}
+    \small
+    \begin{tabular}{lccc}
+        \hline
+        Método & $\rho=0{,}50$ & $\rho=0{,}25$ & $\rho=0{,}125$ \\
+        \hline
+        full & 0,750 & 0,750 & 0,750 \\
+        random & 0,725 & 0,775 & 0,700 \\
+        svd & 0,750 & 0,733 & 0,683 \\
+        svd\_energia & 0,742 & 0,725 & 0,675 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \caption{Acurácia downstream por método e $\rho$ com $\varepsilon=0{,}95$.}
+    \label{tab:imdb-e95}
+    \small
+    \begin{tabular}{lccc}
+        \hline
+        Método & $\rho=0{,}50$ & $\rho=0{,}25$ & $\rho=0{,}125$ \\
+        \hline
+        full & 0,750 & 0,750 & 0,750 \\
+        random & 0,725 & 0,775 & 0,700 \\
+        svd & 0,783 & 0,742 & 0,725 \\
+        svd\_energia & 0,742 & 0,733 & 0,675 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \caption{Acurácia downstream por método e $\rho$ com $\varepsilon=0{,}99$.}
+    \label{tab:imdb-e99}
+    \small
+    \begin{tabular}{lccc}
+        \hline
+        Método & $\rho=0{,}50$ & $\rho=0{,}25$ & $\rho=0{,}125$ \\
+        \hline
+        full & 0,750 & 0,750 & 0,750 \\
+        random & 0,725 & 0,775 & 0,700 \\
+        svd & 0,792 & 0,775 & 0,725 \\
+        svd\_energia & 0,750 & 0,725 & 0,675 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \caption{$\bar{k}$ e $E_k^{\mathrm{energia}}$ para \texttt{svd} por $\varepsilon$ (média no corpus; invariante a $\rho$).}
+    \label{tab:metricas-eps}
+    \small
+    \begin{tabular}{lcc}
+        \hline
+        $\varepsilon$ & $\bar{k}$ & $E_k^{\mathrm{energia}}$ \\
+        \hline
+        0,90 & 34,1 & 0,903 \\
+        0,95 & 50,1 & 0,951 \\
+        0,99 & 92,4 & 0,990 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Discussão}
+
+A grade $\varepsilon \times \rho$ separa dois efeitos: $\rho$ controla a compressão $C$ (e portanto $T'$), enquanto $\varepsilon$ controla a dimensão do subespaço ($\bar{k}$) e a energia espectral preservada. Ao mesmo $\rho$, aumentar $\varepsilon$ melhora consistentemente a acurácia de \texttt{svd} --- o ranking de leverage scores em subespaço mais rico preserva melhor o sinal downstream. Já \texttt{svd\_energia} não acompanha esse ganho e degrada em compressão agressiva.
+
+Reviews longas oferecem mais espaço para poda: mesmo com $\rho=0{,}125$, mantemos $\bar{T'}\approx 26$ tokens. A SVD não supera sistematicamente o baseline aleatório em todos os níveis de $C$; \texttt{random} permanece forte em $\rho=0{,}25$. Contrastamos poda \textbf{estrutural} com seleção \textbf{semântica} em agentes \cite{zhang2026fastcontext}; trabalhos futuros incluem compressão \emph{query-aware} e validação em cenário sintético controlado (Seção~\ref{sec:conclusao}).
+
+IMDb oferece reviews longas e redundantes, com rótulo de sentimento binário como proxy supervisionado (Seção~\ref{sec:intro}). Não simula agentes nem janelas de milhões de tokens; o encoder compacto (\texttt{all-MiniLM-L6-v2}) isola o operador algébrico, sem avaliar LLMs completos nem pipelines de agente. Interpretamos os resultados como evidência do operador em proxy controlado, não como benchmark de classificação em larga escala nem como garantia de comportamento em modelos generativos.

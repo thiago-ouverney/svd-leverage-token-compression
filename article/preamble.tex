@@ -1,0 +1,96 @@
+% =============================================================================
+% PREAMBULO — incluido por main.tex via \input{preamble}
+% NAO compile este arquivo sozinho no Overleaf.
+% =============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage{sbc-template}
+\usepackage{natbib}
+\bibliographystyle{apalike}
+%\bibliographystyle{ieeetr}
+
+\usepackage{setspace}
+\setstretch{1.15}
+
+\usepackage{geometry}
+\geometry{a4paper, portrait, margin=2cm}
+
+% for including figures
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{subcaption} % Required for sub-figures
+
+% for drawing
+\usepackage{tikz}         % for primitive drawing
+\usepackage{pgfplots}     % for data plots
+\pgfplotsset{compat=1.18} % suggested by overleaf
+
+% for colors
+\usepackage{xcolor}
+
+% for symbols and math
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{nicefrac,xfrac}
+
+\DeclareMathSymbol{\shortminus}{\mathbin}{AMSa}{"39}
+
+% for some special formatting
+\usepackage{ulem}
+\usepackage{soul}
+\def\ie{i.\@e.\@ } % defining macro for "i.e."
+
+% for algorithms
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{algorithmicx}
+\algdef{SE}[SUBALG]{Indent}{EndIndent}{}{\algorithmicend\ }
+\algtext*{Indent}
+\algtext*{EndIndent}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+% for table formatting
+\usepackage{hhline}
+\usepackage{colortbl}
+\usepackage{multicol}
+\usepackage{multirow}
+\definecolor{SuperHeaderGray}{rgb}{0.825,0.825,0.825}
+\definecolor{HeaderGray}{rgb}{0.875,0.875,0.875}
+\definecolor{LightHeaderGray}{rgb}{0.925,0.925,0.925}
+\definecolor{Grey}{rgb}{0.875,0.875,0.875}
+\definecolor{LightGrey}{rgb}{0.95,0.95,0.95}
+
+% for hyperlinks within text
+\usepackage[pdftex]{hyperref}
+\hypersetup{
+  colorlinks=true,
+  anchorcolor=black,
+  citecolor=blue,%black
+  filecolor=black,
+  urlcolor=black,
+  linkcolor=black
+}
+
+% redefining \cite to: blue{[Author, Year]}
+\let\oldcite\cite
+\renewcommand{\cite}[1]{\textcolor{blue}{[\oldcite{#1}]}}
+
+% redefining references section title to pt-br
+\renewcommand{\refname}{Referências}
+
+%% uncomment for linenumbers
+% \usepackage{lineno}
+% \let\oldequation\equation
+% \let\oldendequation\endequation
+% \renewenvironment{equation}
+%   {\linenomathNonumbers\oldequation}
+%   {\oldendequation\endlinenomath}
+% \let\olddisplaymath\displaymath
+% \let\oldenddisplaymath\enddisplaymath
+% \renewenvironment{displaymath}
+%   {\linenomathNonumbers\olddisplaymath}
+%   {\oldenddisplaymath\endlinenomath}
+% \linenumbers
